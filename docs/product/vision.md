@@ -1,106 +1,140 @@
 # Product Vision: Bike Route Finder
 
-## Problem Statement
+## The Problem
 
-Existing navigation tools (Google Maps, Apple Maps) fail to account for family-specific bike safety preferences. Route quality knowledge exists in people's heads but isn't shareable or discoverable. Families need routes that consider:
+Parents and families want to bike safely with their kids, but existing navigation tools fail them:
 
-- Different riding styles for different riders (kids in trailer vs. solo adult)
-- Granular safety preferences beyond basic "bike route" designation
-- Time-of-day considerations (quiet side streets acceptable at certain times)
-- Route quality feedback that improves recommendations over time
+- **Google Maps** routes bike trips down stroads with no bike infrastructure
+- **Apple Maps** has repeatedly suggested routes on busy roads with zero bike infra even when routing for bike
+- **Google Maps** picks routes that are supposedly "bike friendly" (e.g., Oranienstrasse) but are actually elevated narrow bike paths with tree roots — exactly what experienced cyclists hate
+- **InfraVelo / CyclOSM** have great data but no routing and cluttered, unusable UX
+- **BBBike** has routing but looks and feels like it was built 20+ years ago
 
-## Target Users
+**The core gap**: No tool lets you say "I prioritize Fahrradstrasse > separated paths > quiet streets" and routes that match *your* riding situation — which changes depending on who you're riding with.
 
-Primary: Families cycling with children in Berlin
-Secondary: Individual cyclists with specific safety/comfort preferences
+---
 
-## Core Value Proposition
+## Our Solution
 
-Enable personalized bike routing based on individual safety preferences and rider capabilities, with routes that improve through community feedback.
+A bike routing tool that understands **personal safety preferences** and provides routes that match your specific riding situation. Start with Berlin, expand to any city worldwide.
 
-## Safety Preference Model
+---
 
-Routes are scored based on family-friendliness:
+## Rider Profiles
 
-- **Great:** Fahrradstrasse, fully separated car-free trails (Mauerweg), nature paths
-- **Good:** Separated bike lanes on sidewalk
-- **OK:** Streets with wide sidewalk + nearby on-street bike lane, low car traffic
-- **Acceptable:** Quiet side streets with minimal car traffic (time-of-day dependent)
-- **Avoid:** Busy streets without protected infrastructure
+The key insight: the *same* person needs different routes depending on who they're riding with.
+
+### Riding with Bea (age 4, doesn't ride on road yet)
+
+Priority order:
+1. **Best**: Fahrradstrasse, fully separated car-free paths, quiet neighborhood streets with no cars
+2. **Acceptable**: Short connection segments riding together on the sidewalk — but only if sidewalk is wide enough and quiet
+3. **Avoid**: Any road with cars moving alongside
+
+### Riding with Joanna (confident adult cyclist)
+
+Priority order:
+1. **Best**: Fahrradstrasse (best overall), wide recreational nature trails that are car-free
+2. **Good**: Quiet streets, bus lanes
+3. **Avoid**: Elevated bike paths — full of tree roots, too narrow for 30+ km/h
+4. **Context-dependent**: At certain times of day, major multi-lane roads are fine (can ride in the rightmost lane when traffic is light)
+
+### Riding Solo / Other Configurations
+
+Additional profiles to support over time as usage patterns emerge.
+
+---
 
 ## Key Features (Priority Order)
 
 ### MVP (Phase 1)
 1. **Custom Route Planning**: Route between two points with safety preference weighting
-2. **Preference Profiles**: Different profiles for different riding styles (e.g., "with trailer", "solo adult", "confident kid")
+2. **Rider Profiles**: Select who you're riding with — routes adjust automatically
 3. **OSM-based Data**: Leverage OpenStreetMap bicycle infrastructure tagging
 4. **Visual Route Preview**: Show route on map with safety segments color-coded
 
 ### Phase 2
-1. **Route Tweaking**: Manual route adjustment with feedback ("avoid this segment", "prefer this street")
-2. **Feedback System**: Users can rate segments and report changes
-3. **Route Sharing**: Save and share custom routes with community
-4. **Time-of-Day Routing**: Different routes based on traffic patterns
+1. **Route Tweaking**: Manual route adjustment in the moment ("avoid this segment")
+2. **Route Discussion**: Chat-style feedback to discuss alternate routes for future planning
+3. **Personal Route Memory**: Save known-good custom routes (e.g., Yorkstrasse → Gneissenaustrasse → Baerwaldstrasse → Dresdener Str 112 as a good west-to-home route)
+4. **Feedback System**: Rate segments, report changes — improves future routing
+5. **Time-of-Day Routing**: Different route options based on traffic patterns
 
-### Phase 3 (Optional)
+### Phase 3 (Optional / Nice to Have)
 1. **Turn-by-Turn Navigation**: On watch or phone
-2. **Offline Support**: Download routes for offline use
+2. **Offline Support**: Download routes for use without connectivity
 3. **Community Route Collections**: Curated collections of popular family routes
 
-## Success Metrics
+---
 
-- Routes successfully avoid high-traffic streets when family-safe alternatives exist
-- Users successfully complete trips without needing to deviate from planned route
-- Route quality improves over time based on feedback
-- Routes consider rider-specific preferences accurately
+## Long-Term Vision
+
+### Today: Berlin
+
+Help learn safe bike routes around Berlin quickly — for riding with Bea, with Joanna, or solo.
+
+### Tomorrow: Any City
+
+Expand to any city where we travel with bikes:
+- San Francisco
+- Amsterdam, Copenhagen
+- Anywhere you visit with bikes
+
+The same tool should work worldwide because it's built on OpenStreetMap, which covers every city.
+
+### Ultimate: Worldwide Crowdsourced Map
+
+Build a community-driven, worldwide map of kid-friendly bike infrastructure:
+- Users rate route segments from their own rides
+- Routes improve based on real feedback
+- Local knowledge becomes discoverable by newcomers
+- Families share what works in their city
+- Any person or family anywhere can benefit
+
+---
+
+## Why Open Source / Open Data
+
+- **OpenStreetMap**: Worldwide, free, community-maintained — covers Berlin, SF, and everywhere else
+- **Open routing engines**: No lock-in, customizable for our specific preference model
+- **Personal SaaS tools**: Use where they make sense (hosting, maps display), avoid where they impose routing logic we can't control
+
+Build custom only where existing tools fail — which is: preference-aware routing with rider profiles.
+
+---
+
+## Success Looks Like
+
+1. **Routes work**: Follow a suggested route without needing to deviate
+2. **Routes match the rider**: Different suggestions for riding with Bea vs. Joanna vs. solo
+3. **Routes improve**: Quality gets better over time based on feedback
+4. **Knowledge transfers**: What works in Berlin helps bootstrap SF
+5. **Community grows**: Users contribute data for their own cities
+6. **Impact scales**: Families bike safely in cities worldwide
+
+---
+
+## Existing Tools Assessment
+
+See `docs/research/existing-tools.md` for full analysis. Summary:
+
+| Tool | Data | Routing | UX | Family-Safe? |
+|------|------|---------|-----|-------------|
+| InfraVelo | ✅ | ❌ | ❌ Cluttered | ❌ No routing |
+| CyclOSM | ✅ | ❌ | ❌ Too many layers | ❌ No routing |
+| BBBike | ✅ | ✅ | ❌ 20yr old UI | ❌ No profiles |
+| Google Maps | ⚠️ | ✅ | ✅ | ❌ Bad bike logic |
+| Apple Maps | ⚠️ | ✅ | ✅ | ❌ Routes on stroads |
+| Komoot/ADFC | ⚠️ | ✅ | ✅ | ⚠️ Curated only |
+
+**This tool combines**: OSM data + custom family routing logic + modern UX + community feedback
+
+---
 
 ## Constraints
 
-- Use open source tools and data where possible
+- Use open source tools and data wherever possible
 - Build custom solutions only where existing tools fail
 - Prioritize route quality over feature count
-- Mobile-first experience for actual navigation
-
-## Research: Existing Tools
-
-### What Exists
-
-**Official Maps:**
-- InfraVelo Projektkarte: Official Berlin infrastructure map with Fahrradstraße and protected lanes
-- CyclOSM: Bike-focused OSM rendering with surface types
-- ADFC paper maps: Color-coded street suitability
-
-**Routing Tools:**
-- BBBike: Bike-friendly routing for Berlin
-- Komoot: Turn-by-turn with curated routes
-- Google/Apple Maps: General routing with "bike" mode
-
-### What's Missing
-
-1. **Granular Preference Weighting**: No tool lets you specify "Fahrradstrasse > separated paths > quiet streets > bus lanes" with custom weightings
-2. **Rider-Specific Profiles**: No differentiation between "solo adult" vs. "with kids in trailer"
-3. **Gap Filling**: Tools don't help connect gaps in bike network with acceptable alternatives
-4. **Time-Aware Routing**: Can't specify "quiet side streets OK before 8am"
-5. **Learning from Feedback**: Routes don't improve based on user ratings
-6. **Usable UX**: Existing tools (InfraVelo, BBBike) have cluttered, hard-to-read interfaces
-
-### Key Insights from Bryan's Notes
-
-- **InfraVelo**: Good data, but cluttered UX and no routing
-- **CyclOSM**: Great data, but essentially unusable in raw form (too many similar-colored layers)
-- **BBBike**: Virtually unusable, 20+ year old UX, no modern expectations met
-- **Komoot ADFC**: Couldn't find family-friendly collections as advertised
-- **ADFC paper map**: Is there a PDF available somewhere?
-
-## Why Build This?
-
-Existing tools either:
-1. Have good data but no routing (InfraVelo, CyclOSM)
-2. Have routing but poor UX and no customization (BBBike)
-3. Have good UX but wrong routing logic for families (Google/Apple Maps)
-
-**This tool combines:**
-- OSM's comprehensive data
-- Custom routing logic for family safety preferences
-- Modern, usable UX
-- Community feedback loop
+- Mobile-friendly experience for actual navigation
+- No user accounts required for MVP (add auth when needed for Phase 2 saved routes)
