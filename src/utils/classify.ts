@@ -17,60 +17,57 @@ export const SAFETY: Record<SafetyClass, SafetyInfo> = {
 
 export type LegendLevel = 'great' | 'ok' | 'bad'
 
-export interface LegendItem { icon: string; name: string }
+export interface LegendItem { icon: string; name: string; safetyClass: SafetyClass }
 
 export interface LegendGroup {
   level: LegendLevel
   label: string
-  color: string
   items: LegendItem[]
 }
 
-// Legend level → representative color from the SAFETY palette:
-//   great → green  (#22c55e, matching SAFETY.great)
-//   ok    → violet (#a855f7, matching SAFETY.ok — the more visible of ok+acceptable)
-//   bad   → orange (#f97316, matching SAFETY.caution — the entry point to "avoid" territory)
+// Each item carries its safetyClass so the Legend can show the exact map color
+// (from the SAFETY palette) per item — keeping legend and overlay in sync.
 export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
   toddler: [
-    { level: 'great', label: 'Great', color: '#22c55e', items: [
-      { icon: '🚴', name: 'Car-free path' },
-      { icon: '🚲', name: 'Fahrradstrasse' },
-      { icon: '🛤️', name: 'Separated bike path' },
+    { level: 'great', label: 'Great', items: [
+      { icon: '🚴', name: 'Recreational path (car free)', safetyClass: 'great' },
+      { icon: '🚲', name: 'Fahrradstrasse',               safetyClass: 'great' },
+      { icon: '🛤️', name: 'Separated bike path',          safetyClass: 'good'  },
     ]},
-    { level: 'ok', label: 'OK', color: '#a855f7', items: [
-      { icon: '🏘️', name: 'Quiet street' },
+    { level: 'ok', label: 'OK', items: [
+      { icon: '🏘️', name: 'Quiet street', safetyClass: 'acceptable' },
     ]},
-    { level: 'bad', label: 'Avoid', color: '#f97316', items: [
-      { icon: '〰️', name: 'Painted bike lane' },
-      { icon: '⚠️', name: 'Busy road' },
+    { level: 'bad', label: 'Avoid', items: [
+      { icon: '〰️', name: 'Painted bike lane', safetyClass: 'avoid' },
+      { icon: '⚠️', name: 'Busy road',         safetyClass: 'avoid' },
     ]},
   ],
   trailer: [
-    { level: 'great', label: 'Great', color: '#22c55e', items: [
-      { icon: '🚴', name: 'Car-free path / Fahrradstrasse' },
-      { icon: '🛤️', name: 'Separated bike path' },
+    { level: 'great', label: 'Great', items: [
+      { icon: '🚴', name: 'Recreational path (car free) / Fahrradstrasse', safetyClass: 'great' },
+      { icon: '🛤️', name: 'Separated bike path',                           safetyClass: 'good'  },
     ]},
-    { level: 'ok', label: 'OK', color: '#a855f7', items: [
-      { icon: '🏘️', name: 'Quiet street' },
-      { icon: '〰️', name: 'Roadside bike lane' },
-      { icon: '🚌', name: 'Bus lane' },
+    { level: 'ok', label: 'OK', items: [
+      { icon: '🏘️', name: 'Quiet street',     safetyClass: 'acceptable' },
+      { icon: '〰️', name: 'Roadside bike lane', safetyClass: 'ok'       },
+      { icon: '🚌', name: 'Bus lane',           safetyClass: 'acceptable' },
     ]},
-    { level: 'bad', label: 'Avoid', color: '#f97316', items: [
-      { icon: '⚠️', name: 'Busy road' },
+    { level: 'bad', label: 'Avoid', items: [
+      { icon: '⚠️', name: 'Busy road', safetyClass: 'avoid' },
     ]},
   ],
   training: [
-    { level: 'great', label: 'Great', color: '#22c55e', items: [
-      { icon: '🚴', name: 'Car-free path / Fahrradstrasse' },
-      { icon: '🛤️', name: 'Separated path' },
+    { level: 'great', label: 'Great', items: [
+      { icon: '🚴', name: 'Recreational path (car free) / Fahrradstrasse', safetyClass: 'great' },
+      { icon: '🛤️', name: 'Separated path',                                safetyClass: 'good'  },
     ]},
-    { level: 'ok', label: 'OK', color: '#a855f7', items: [
-      { icon: '〰️', name: 'Bike lane' },
-      { icon: '🏘️', name: 'Quiet street' },
-      { icon: '🚌', name: 'Bus lane' },
+    { level: 'ok', label: 'OK', items: [
+      { icon: '〰️', name: 'Bike lane',    safetyClass: 'ok'         },
+      { icon: '🏘️', name: 'Quiet street', safetyClass: 'acceptable' },
+      { icon: '🚌', name: 'Bus lane',     safetyClass: 'acceptable' },
     ]},
-    { level: 'bad', label: 'Avoid', color: '#f97316', items: [
-      { icon: '⚠️', name: 'Busy road' },
+    { level: 'bad', label: 'Avoid', items: [
+      { icon: '⚠️', name: 'Busy road', safetyClass: 'avoid' },
     ]},
   ],
 }

@@ -48,8 +48,8 @@ function OverlayController({ enabled, profileKey, onStatusChange }: ControllerPr
     try {
       const result = await fetchBikeInfra(map.getBounds() as LatLngBounds, profileKey)
       if (result === null) {
+        // Area too large — keep existing ways visible, just show hint to zoom in
         onStatusChange('zoom')
-        setWays([])
       } else {
         setWays(result)
         onStatusChange('ok')

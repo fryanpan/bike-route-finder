@@ -31,9 +31,8 @@ function saveProfiles(profiles: ProfileMap): void {
 const MODE_HINT: Record<string, string> = {
   start:    'Tap map or search to set start',
   end:      'Tap map or search to set destination',
-  waypoint: 'Tap to add waypoints',
+  waypoint: 'Tap map to add waypoints',
 }
-const EDIT_MODE_OFF_HINT = 'Tap ✏️ Edit on the map to set points'
 
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileMap>(loadProfiles)
@@ -50,7 +49,6 @@ export default function App() {
 
   const [clickMode, setClickMode]   = useState('start')
   const [panelOpen, setPanelOpen]   = useState(true)
-  const [editMode, setEditMode]     = useState(false)
 
   const [overlayEnabled, setOverlayEnabled] = useState(false)
   const [overlayStatus, setOverlayStatus]   = useState('idle')
@@ -174,8 +172,6 @@ export default function App() {
             overlayEnabled={overlayEnabled}
             profileKey={selectedProfile}
             onOverlayStatusChange={setOverlayStatus}
-            editMode={editMode}
-            onToggleEditMode={() => setEditMode((v) => !v)}
           />
         </Suspense>
       </div>
@@ -224,7 +220,7 @@ export default function App() {
               placeholder="Search destination…"
             />
             <p className="click-hint">
-              {editMode ? MODE_HINT[clickMode] : EDIT_MODE_OFF_HINT}
+              {MODE_HINT[clickMode]}
             </p>
           </div>
 

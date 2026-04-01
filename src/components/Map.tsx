@@ -1,3 +1,4 @@
+import React from 'react'
 import L from 'leaflet'
 import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
 import { SAFETY, PROFILE_LEGEND } from '../utils/classify'
@@ -48,16 +49,44 @@ function ClickHandler({ onClick }: { onClick: (latlng: L.LatLng) => void }) {
   return null
 }
 
-function EditModeButton({ editMode, onToggle }: { editMode: boolean; onToggle: () => void }) {
+// Official Fahrradstrasse sign (Zeichen 244.1): blue circle with white bicycle
+function FahrradstrasseSign() {
   return (
-    <button
-      className={`edit-mode-btn${editMode ? ' edit-mode-active' : ''}`}
-      onClick={onToggle}
-      title={editMode ? 'Exit edit mode' : 'Activate to tap map and set points'}
-    >
-      ✏️ {editMode ? 'Editing' : 'Edit'}
-    </button>
+    <svg width="16" height="16" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
+      <circle cx="8" cy="8" r="8" fill="#1565C0"/>
+      <circle cx="4.5" cy="11" r="2.2" fill="none" stroke="white" strokeWidth="1.2"/>
+      <circle cx="11.5" cy="11" r="2.2" fill="none" stroke="white" strokeWidth="1.2"/>
+      <path d="M4.5 11 L7 7.5 L11.5 11" fill="none" stroke="white" strokeWidth="1.1"/>
+      <path d="M7 7.5 L9 7.5" stroke="white" strokeWidth="1.1"/>
+      <path d="M9 7.5 L11.5 6.5" stroke="white" strokeWidth="1.1"/>
+      <path d="M7 7.5 L6.5 6.8 L8.5 6.8" fill="none" stroke="white" strokeWidth="1"/>
+      <circle cx="8.5" cy="6" r="1" fill="white"/>
+    </svg>
   )
+}
+
+// Separated bike path icon: elevated bike lane beside car lane
+function SeparatedPathSign() {
+  return (
+    <svg width="22" height="14" viewBox="0 0 22 14" style={{ flexShrink: 0 }}>
+      <rect x="0" y="0" width="22" height="6.5" rx="1" fill="#dbeafe"/>
+      <rect x="0" y="8" width="22" height="6" rx="1" fill="#f1f5f9"/>
+      <rect x="0" y="6" width="22" height="2" fill="#94a3b8"/>
+      <circle cx="5" cy="3.2" r="1.8" fill="none" stroke="#0ea5e9" strokeWidth="1"/>
+      <circle cx="10" cy="3.2" r="1.8" fill="none" stroke="#0ea5e9" strokeWidth="1"/>
+      <path d="M5 3.2 L7 1.2 L10 3.2" fill="none" stroke="#0ea5e9" strokeWidth="1"/>
+      <path d="M8 1.8 L10 1.2" stroke="#0ea5e9" strokeWidth="1"/>
+      <rect x="13" y="8.8" width="7" height="3.5" rx="1" fill="#94a3b8"/>
+      <rect x="14" y="8" width="5" height="2.5" rx="0.5" fill="#cbd5e1"/>
+    </svg>
+  )
+}
+
+const LEGEND_ICON_OVERRIDE: Record<string, React.ReactNode> = {
+  'Fahrradstrasse':                                     <FahrradstrasseSign />,
+  'Recreational path (car free) / Fahrradstrasse':      <FahrradstrasseSign />,
+  'Separated bike path':                                <SeparatedPathSign />,
+  'Separated path':                                     <SeparatedPathSign />,
 }
 
 function midpoint(coords: [number, number][]): [number, number] {
@@ -121,7 +150,6 @@ function Legend({
   overlayOn: boolean
   profileKey: string
 }) {
-  // Profile-aware legend: show per-profile great/ok/bad groups when route loaded or overlay on.
   const profileGroups = PROFILE_LEGEND[profileKey]
   const hasRoute = segments && segments.length > 0
   const showLegend = hasRoute || overlayOn
@@ -133,7 +161,6 @@ function Legend({
     ? new Set(segments!.map((s) => s.safetyClass))
     : null
 
-  // Map safety classes to profile levels to know which levels appear in the route.
   const levelAppears = (level: string): boolean => {
     if (!presentClasses) return true
     const levelToClasses: Record<string, string[]> = {
@@ -152,15 +179,21 @@ function Legend({
         {visibleGroups.map((group) => (
           <div key={group.level} className="legend-group">
             <div className="legend-level-row">
-              <span className="legend-dot" style={{ background: group.color }} />
               <span className="legend-level-label">{group.label}</span>
             </div>
-            {group.items.map((item) => (
-              <div key={item.name} className="legend-item legend-item-sub">
+            {group.items.map((item) => {
+              const itemColor = SAFETY[item.safetyClass]?.color ?? '#888'
+              const iconNode = LEGEND_ICON_OVERRIDE[item.name] ?? (
                 <span className="legend-icon">{item.icon}</span>
-                <span className="legend-text">{item.name}</span>
-              </div>
-            ))}
+              )
+              return (
+                <div key={item.name} className="legend-item">
+                  <span className="legend-dot" style={{ background: itemColor }} />
+                  {iconNode}
+                  <span className="legend-text">{item.name}</span>
+                </div>
+              )
+            })}
           </div>
         ))}
       </div>
@@ -196,8 +229,6 @@ interface Props {
   overlayEnabled: boolean
   profileKey: string
   onOverlayStatusChange: (status: string) => void
-  editMode: boolean
-  onToggleEditMode: () => void
   legendVisible?: boolean
 }
 
@@ -211,8 +242,6 @@ export default function Map({
   overlayEnabled,
   profileKey,
   onOverlayStatusChange,
-  editMode,
-  onToggleEditMode,
   legendVisible = true,
 }: Props) {
   const routeSegments = route?.segments ?? null
@@ -228,7 +257,7 @@ export default function Map({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {editMode && <ClickHandler onClick={onMapClick} />}
+      <ClickHandler onClick={onMapClick} />
 
       <BikeMapOverlay enabled={overlayEnabled} profileKey={profileKey} onStatusChange={onOverlayStatusChange} />
 
@@ -246,14 +275,12 @@ export default function Map({
 
       {waypoints.map((wp, i) => (
         <Marker key={i} position={[wp.lat, wp.lng]} icon={waypointIcon}
-          eventHandlers={editMode ? { click: () => onRemoveWaypoint(i) } : {}}
+          eventHandlers={{ click: () => onRemoveWaypoint(i) }}
         >
         </Marker>
       ))}
 
       {legendVisible && <Legend segments={routeSegments} overlayOn={overlayEnabled} profileKey={profileKey} />}
-
-      <EditModeButton editMode={editMode} onToggle={onToggleEditMode} />
     </MapContainer>
   )
 }
