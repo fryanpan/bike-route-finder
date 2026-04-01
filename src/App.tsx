@@ -168,6 +168,7 @@ export default function App() {
           onMapClick={handleMapClick}
           onRemoveWaypoint={handleRemoveWaypoint}
           overlayEnabled={overlayEnabled}
+          profileKey={selectedProfile}
           onOverlayStatusChange={setOverlayStatus}
         />
       </div>

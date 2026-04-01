@@ -138,6 +138,7 @@ interface Props {
   onMapClick: (latlng: L.LatLng) => void
   onRemoveWaypoint: (index: number) => void
   overlayEnabled: boolean
+  profileKey: string
   onOverlayStatusChange: (status: string) => void
 }
 
@@ -149,6 +150,7 @@ export default function Map({
   onMapClick,
   onRemoveWaypoint,
   overlayEnabled,
+  profileKey,
   onOverlayStatusChange,
 }: Props) {
   const routeSegments = route?.segments ?? null
@@ -166,7 +168,7 @@ export default function Map({
 
       <ClickHandler onClick={onMapClick} />
 
-      <BikeMapOverlay enabled={overlayEnabled} onStatusChange={onOverlayStatusChange} />
+      <BikeMapOverlay enabled={overlayEnabled} profileKey={profileKey} onStatusChange={onOverlayStatusChange} />
 
       <RouteDisplay route={route} />
 

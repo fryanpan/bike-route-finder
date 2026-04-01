@@ -33,10 +33,11 @@ function OverlayLines({ ways }: { ways: OsmWay[] }) {
 
 interface ControllerProps {
   enabled: boolean
+  profileKey: string
   onStatusChange: (status: string) => void
 }
 
-function OverlayController({ enabled, onStatusChange }: ControllerProps) {
+function OverlayController({ enabled, profileKey, onStatusChange }: ControllerProps) {
   const map = useMap()
   const [ways, setWays] = useState<OsmWay[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -45,7 +46,7 @@ function OverlayController({ enabled, onStatusChange }: ControllerProps) {
     if (!enabled) return
     onStatusChange('loading')
     try {
-      const result = await fetchBikeInfra(map.getBounds() as LatLngBounds)
+      const result = await fetchBikeInfra(map.getBounds() as LatLngBounds, profileKey)
       if (result === null) {
         onStatusChange('zoom')
         setWays([])
@@ -56,7 +57,7 @@ function OverlayController({ enabled, onStatusChange }: ControllerProps) {
     } catch {
       onStatusChange('error')
     }
-  }, [enabled, map, onStatusChange])
+  }, [enabled, profileKey, map, onStatusChange])
 
   useMapEvents({
     moveend() {
@@ -79,7 +80,7 @@ function OverlayController({ enabled, onStatusChange }: ControllerProps) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, profileKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!enabled || !ways.length) return null
   return <OverlayLines ways={ways} />
@@ -87,9 +88,10 @@ function OverlayController({ enabled, onStatusChange }: ControllerProps) {
 
 interface Props {
   enabled: boolean
+  profileKey: string
   onStatusChange: (status: string) => void
 }
 
-export default function BikeMapOverlay({ enabled, onStatusChange }: Props) {
-  return <OverlayController enabled={enabled} onStatusChange={onStatusChange} />
+export default function BikeMapOverlay({ enabled, profileKey, onStatusChange }: Props) {
+  return <OverlayController enabled={enabled} profileKey={profileKey} onStatusChange={onStatusChange} />
 }

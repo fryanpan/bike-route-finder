@@ -1,4 +1,5 @@
 import type { SafetyClass, OsmWay } from '../utils/types'
+import { worsen } from '../utils/classify'
 import type { LatLngBounds } from 'leaflet'
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
@@ -29,26 +30,47 @@ const BAD_SURFACES = new Set([
 ])
 
 /**
- * Map raw OSM tags to a safety class (mirrors classify.ts logic for Valhalla edges).
- * Used for the Overpass-based bike map overlay where we have direct OSM tag access.
+ * Map raw OSM tags to a safety class, mirroring classify.ts profile-aware logic.
  *
- * Note: unlike classifyEdge(), we CAN directly check bicycle_road=yes here,
- * since Overpass returns raw OSM tags.
+ * Profile differences (same rules as classifyEdge in classify.ts):
+ *  toddler  — painted bike lanes (cycleway=lane) → avoid; share_busway → caution
+ *  trailer  — painted lanes → ok; share_busway → acceptable
+ *  training — same as trailer; tolerates bad surfaces (no worsening)
  */
-function classifyOsmTags(tags: Record<string, string>): SafetyClass {
+function classifyOsmTags(tags: Record<string, string>, profileKey?: string): SafetyClass {
   const highway = tags.highway ?? ''
   const cycleway = tags.cycleway ?? ''
   const bicycleRoad = tags.bicycle_road === 'yes'
   const surface = tags.surface ?? ''
   const badSurface = BAD_SURFACES.has(surface)
 
-  if (highway === 'cycleway' || bicycleRoad) return badSurface ? 'ok' : 'great'
-  if (cycleway === 'track') return badSurface ? 'ok' : 'good'
-  if (cycleway === 'opposite_track') return 'good'
-  if (cycleway === 'lane' || cycleway === 'opposite_lane') return badSurface ? 'acceptable' : 'ok'
-  if (cycleway === 'share_busway') return 'acceptable'
+  const base = classifyOsmBase(highway, cycleway, bicycleRoad, profileKey)
+
+  // Bad surfaces worsen the class by one step — except for the training profile
+  if (badSurface && profileKey !== 'training') return worsen(base)
+  return base
+}
+
+function classifyOsmBase(
+  highway: string,
+  cycleway: string,
+  bicycleRoad: boolean,
+  profileKey?: string,
+): SafetyClass {
+  if (highway === 'cycleway' || bicycleRoad) return 'great'
+  if (cycleway === 'track' || cycleway === 'opposite_track') return 'good'
+
+  if (cycleway === 'lane' || cycleway === 'opposite_lane') {
+    // toddler treats painted road lanes as no better than an unprotected road
+    return profileKey === 'toddler' ? 'avoid' : 'ok'
+  }
+
+  if (cycleway === 'share_busway') {
+    return profileKey === 'toddler' ? 'caution' : 'acceptable'
+  }
+
   if (highway === 'living_street') return 'acceptable'
-  if (highway === 'residential') return badSurface ? 'caution' : 'acceptable'
+  if (highway === 'residential') return 'acceptable'
 
   return 'acceptable'
 }
@@ -63,8 +85,9 @@ interface OverpassElement {
 /**
  * Query bike infrastructure for the visible map bounds.
  * Returns null if the area is too large (zoom in more); throws on network error.
+ * profileKey controls which safety classification rules are applied.
  */
-export async function fetchBikeInfra(bounds: LatLngBounds): Promise<OsmWay[] | null> {
+export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string): Promise<OsmWay[] | null> {
   const bbox = {
     south: bounds.getSouth(),
     west: bounds.getWest(),
@@ -95,7 +118,7 @@ export async function fetchBikeInfra(bounds: LatLngBounds): Promise<OsmWay[] | n
       el.type === 'way' && el.geometry != null,
     )
     .map((el) => ({
-      safetyClass: classifyOsmTags(el.tags ?? {}),
+      safetyClass: classifyOsmTags(el.tags ?? {}, profileKey),
       coordinates: el.geometry.map((pt): [number, number] => [pt.lat, pt.lon]),
       osmId: el.id,
       tags: el.tags ?? {},

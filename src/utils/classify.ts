@@ -120,7 +120,7 @@ function classifyBase(
 }
 
 /** Degrade a safety class by one level (for bad surfaces) */
-function worsen(cls: SafetyClass): SafetyClass {
+export function worsen(cls: SafetyClass): SafetyClass {
   const order: SafetyClass[] = ['great', 'good', 'ok', 'acceptable', 'caution', 'avoid']
   const idx = order.indexOf(cls)
   return idx < order.length - 1 ? order[idx + 1] : 'avoid'
