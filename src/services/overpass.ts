@@ -4,6 +4,10 @@ import type { LatLngBounds } from 'leaflet'
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
 
+// Simple in-memory cache keyed by bbox + profile. Avoids redundant Overpass
+// requests when the user pans back to an area or toggles the overlay off/on.
+const _cache = new Map<string, OsmWay[]>()
+
 function buildQuery(bbox: { south: number; west: number; north: number; east: number }): string {
   const { south, west, north, east } = bbox
   const b = `${south},${west},${north},${east}`
@@ -102,6 +106,15 @@ export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string):
     return null // zoom in more
   }
 
+  const cacheKey = [
+    bbox.south.toFixed(4),
+    bbox.north.toFixed(4),
+    bbox.west.toFixed(4),
+    bbox.east.toFixed(4),
+    profileKey ?? '',
+  ].join(':')
+  if (_cache.has(cacheKey)) return _cache.get(cacheKey)!
+
   const query = buildQuery(bbox)
   const response = await fetch(OVERPASS_URL, {
     method: 'POST',
@@ -113,7 +126,7 @@ export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string):
 
   const data = await response.json() as { elements: OverpassElement[] }
 
-  return data.elements
+  const result = data.elements
     .filter((el): el is OverpassElement & { geometry: NonNullable<OverpassElement['geometry']> } =>
       el.type === 'way' && el.geometry != null,
     )
@@ -123,4 +136,7 @@ export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string):
       osmId: el.id,
       tags: el.tags ?? {},
     }))
+
+  _cache.set(cacheKey, result)
+  return result
 }

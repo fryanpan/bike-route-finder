@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
-import Map from './components/Map'
+import { useState, useEffect, lazy, Suspense } from 'react'
+const Map = lazy(() => import('./components/Map'))
+const ProfileEditor = lazy(() => import('./components/ProfileEditor'))
 import SearchBar from './components/SearchBar'
 import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
-import ProfileEditor from './components/ProfileEditor'
 import FeedbackWidget from './components/FeedbackWidget'
 import { getRoute, getRouteSegments, DEFAULT_PROFILES } from './services/routing'
 import { reverseGeocode } from './services/geocoding'
@@ -161,17 +161,19 @@ export default function App() {
   return (
     <div className="app">
       <div className="map-wrap">
-        <Map
-          startPoint={startPoint}
-          endPoint={endPoint}
-          route={route}
-          waypoints={waypoints}
-          onMapClick={handleMapClick}
-          onRemoveWaypoint={handleRemoveWaypoint}
-          overlayEnabled={overlayEnabled}
-          profileKey={selectedProfile}
-          onOverlayStatusChange={setOverlayStatus}
-        />
+        <Suspense fallback={<div className="map-loading" />}>
+          <Map
+            startPoint={startPoint}
+            endPoint={endPoint}
+            route={route}
+            waypoints={waypoints}
+            onMapClick={handleMapClick}
+            onRemoveWaypoint={handleRemoveWaypoint}
+            overlayEnabled={overlayEnabled}
+            profileKey={selectedProfile}
+            onOverlayStatusChange={setOverlayStatus}
+          />
+        </Suspense>
       </div>
 
       <div className={`panel${panelOpen ? ' panel-open' : ' panel-closed'}`}>
@@ -263,13 +265,15 @@ export default function App() {
       </div>
 
       {editingProfile && (
-        <ProfileEditor
-          profile={profiles[editingProfile]}
-          onChange={(updated) => {
-            setProfiles((prev) => ({ ...prev, [editingProfile]: updated }))
-          }}
-          onClose={() => handleProfileSave(profiles[editingProfile])}
-        />
+        <Suspense fallback={null}>
+          <ProfileEditor
+            profile={profiles[editingProfile]}
+            onChange={(updated) => {
+              setProfiles((prev) => ({ ...prev, [editingProfile]: updated }))
+            }}
+            onClose={() => handleProfileSave(profiles[editingProfile])}
+          />
+        </Suspense>
       )}
 
       <FeedbackWidget />
