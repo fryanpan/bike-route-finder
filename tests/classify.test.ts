@@ -90,6 +90,20 @@ describe('classifyEdge — bad surfaces', () => {
     expect(classifyEdge(dirt, 'toddler')).toBe('good')
     expect(classifyEdge(compacted, 'toddler')).toBe('good')
   })
+
+  it('worsens gravel and unpaved for toddler and trailer', () => {
+    // gravel and unpaved are in BAD_SURFACES — separated track on gravel drops to ok
+    const gravel: ValhallaEdge = { cycle_lane: 3, surface: 'gravel' }
+    const unpaved: ValhallaEdge = { cycle_lane: 3, surface: 'unpaved' }
+    expect(classifyEdge(gravel, 'toddler')).toBe('ok')
+    expect(classifyEdge(gravel, 'trailer')).toBe('ok')
+    expect(classifyEdge(unpaved, 'toddler')).toBe('ok')
+  })
+
+  it('does NOT worsen gravel for training profile', () => {
+    const edge: ValhallaEdge = { cycle_lane: 3, surface: 'gravel' }
+    expect(classifyEdge(edge, 'training')).toBe('good')
+  })
 })
 
 // ── Road class fallback ───────────────────────────────────────────────────────

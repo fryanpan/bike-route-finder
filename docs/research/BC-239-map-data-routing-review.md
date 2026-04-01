@@ -70,11 +70,12 @@ Valhalla is used with the `bicycle` costing mode. Three rider profiles are defin
   - Trailer/Training: **OK**
 - **Status**: Correctly handled with profile-aware logic.
 
-#### ⚠️ Bike lane beside car traffic WITH separation (bollards/bumpers)
+#### ✅ Bike lane beside car traffic WITH separation (bollards/bumpers)
 - **OSM tags**: Typically `cycleway=track`, sometimes `cycleway=lane` + `cycleway:separation=flex_post` or `cycleway:buffer=*`
 - **Valhalla**: `edge.cycle_lane = 3` if tagged as track, `2` if tagged as lane
-- **Classification**: **GOOD** if `cycleway=track`, but...
-- **Gap**: The granular `cycleway:separation` and `cycleway:buffer` tags are **not used** in the classification logic. A bollard-protected lane may be tagged as `cycleway=lane` with separation tags, which would be classified as merely **OK** (or AVOID for toddler) rather than **GOOD**. Whether this matters in practice depends on how Berlin mappers tag such infrastructure.
+- **Overlay classification**: **GOOD** — `overpass.ts` now checks `cycleway:separation` tags and upgrades `cycleway=lane` + separation to `'good'`
+- **Route classification**: Remains **OK** (or AVOID for toddler) because Valhalla `cycle_lane=2` does not expose separation tags — see remaining gaps below
+- **Status**: Partially fixed. Map overlay is correct; route segment coloring is limited by Valhalla API.
 
 #### ✅ Fahrradstrasse (bicycle priority roads, cars must defer)
 - **OSM tags**: `bicycle_road=yes`
@@ -154,32 +155,39 @@ Valhalla is used with the `bicycle` costing mode. Three rider profiles are defin
 | `incline`/`smoothness` tags | ✅ Partial (via `avoid_bad_surfaces`) | ❌ Not in our display |
 
 ### Overpass map overlay has access to:
-The overlay queries these tags directly from OSM:
+The overlay queries these tags directly from OSM (updated 2026-04-01):
 - `highway=cycleway`
 - `bicycle_road=yes`
 - `cycleway=track/lane/opposite_track/opposite_lane/share_busway`
 - `highway=living_street`
 - `highway=residential` (where `bicycle!=no`)
+- `highway=path` (where `bicycle!=no`) — park/canal/river paths
+- `highway=footway` (where `bicycle~yes|designated`) — shared foot+bike paths
+- `highway=track` (where `bicycle!=no`) — dirt/gravel tracks
+- `cycleway:right/left/both=track` — directional separated lanes
+- `cycleway:right/left/both=lane` — directional painted lanes
+- Separation awareness: `cycleway:separation`, `cycleway:right:separation`, `cycleway:left:separation`, `cycleway:both:separation`, `cycleway:buffer`
 
 ---
 
-## 6. Gaps & Recommendations
+## 6. Gaps & Status
 
-### Current gaps:
+### ✅ Fixed gaps (BC-239 implementation, 2026-04-01):
 
-1. **Separation quality not granular**: `cycleway=track` covers both a 2-metre elevated path AND a bollard-protected painted lane. The `cycleway:separation=flex_post` tag exists in OSM but is not used. This matters for toddler/trailer profiles where the distinction is meaningful.
+1. **BAD_SURFACES inconsistency** — FIXED: `overpass.ts` BAD_SURFACES now includes `gravel` and `unpaved`, matching `classify.ts`. Map overlay and route coloring are now consistent for these surfaces.
 
-2. **BAD_SURFACES inconsistency**: `classify.ts` includes `gravel` and `unpaved` in its bad surface set; `overpass.ts` does not. This means the route overlay and the map background overlay classify `gravel` surfaces differently.
+2. **Missing path types in overlay** — FIXED: Added `highway=path`, `highway=footway` (with bicycle access), `highway=track` (with bicycle access), and directional `cycleway:right/left/both=track/lane` to the Overpass query. Park paths, canal towpaths, and gravel tracks now appear in the map overlay.
 
-3. **Public Valhalla instance dependency**: Data freshness is not controlled by the project. Newly built infrastructure may not appear in routing.
+3. **Separation quality not granular (overlay)** — FIXED in overlay: `overpass.ts` now checks `cycleway:separation` (`flex_post`, `separation_kerb`, `guard_rail`), `cycleway:buffer`, and the directional variants (`cycleway:right:separation`, etc.). A `cycleway=lane` with physical separation is now classified as `'good'` instead of `'ok'`/`'avoid'`.
 
-4. **No time-of-day routing**: Residential streets are rated ACCEPTABLE at all times. In reality, a quiet residential street at 8am on a weekday is different from Sunday morning. (Planned for Phase 2.)
+4. **Cycleway on footway missing from overlay** — FIXED: `highway=footway` with `bicycle~yes|designated` is now in the Overpass query, classified as `'great'`.
 
-5. **Cycleway on footway**: Paths tagged `highway=footway` + `bicycle=designated` are not in the Overpass query. These are valid cycling surfaces (some park shared paths) and could be missed from the overlay.
+### Remaining gaps (cannot be fixed in code):
 
-### Recommendations:
+1. **Valhalla does not expose `cycleway:separation` tags**: The public Valhalla instance's `edge` attributes only expose `cycle_lane` (0–4). A painted lane always maps to `cycle_lane=2` regardless of whether it has bollards or a buffer. The route coloring in `classify.ts` therefore cannot distinguish a plain painted lane from a bollard-protected one. This is a Valhalla API limitation — `cycleway:separation` is not part of Valhalla's edge schema. The map overlay (`overpass.ts`) DOES check these tags since it has direct OSM access; only route-segment coloring is affected.
 
-- Consider moving to a self-hosted Valhalla instance with controlled update schedule
-- Add `cycleway:separation` awareness — at minimum, map `flex_post`/`separation_kerb` to a better safety class
-- Align `BAD_SURFACES` between `classify.ts` and `overpass.ts`
-- Add `highway=footway` + `bicycle=designated` to Overpass query for map overlay
+2. **`avoid_bad_surfaces` is a blunt instrument**: Valhalla's `avoid_bad_surfaces` costing parameter penalises rough surfaces globally, but cannot distinguish `cobblestone` (impassable for trailers) from rough `compacted` (rideable). The calibrated value of `0.5` is a best-effort compromise. At the display level, `classify.ts` applies the `BAD_SURFACES` penalty post-routing, which gives finer control for display but does not change the route itself.
+
+3. **No time-of-day routing**: Residential streets are rated ACCEPTABLE at all times. A quiet residential at 8am weekday is meaningfully different from the same street at rush hour. Time-of-day routing is planned for Phase 2.
+
+4. **Data freshness depends on public Valhalla instance**: This project uses `valhalla1.openstreetmap.de`. That server's OSM data update schedule is not controlled by the project. Newly built infrastructure (new Fahrradstrassen, newly painted lanes) may lag weeks to months in routing results, even if the Overpass overlay (queried fresh each time) shows them correctly. Consider self-hosting Valhalla for production.

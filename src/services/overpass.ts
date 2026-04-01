@@ -23,6 +23,15 @@ function buildQuery(bbox: { south: number; west: number; north: number; east: nu
   way["cycleway"="share_busway"](${b});
   way["highway"="living_street"](${b});
   way["highway"="residential"]["bicycle"!="no"](${b});
+  way["highway"="path"]["bicycle"!="no"](${b});
+  way["highway"="footway"]["bicycle"~"yes|designated"](${b});
+  way["highway"="track"]["bicycle"!="no"](${b});
+  way["cycleway:right"="track"](${b});
+  way["cycleway:left"="track"](${b});
+  way["cycleway:both"="track"](${b});
+  way["cycleway:right"="lane"](${b});
+  way["cycleway:left"="lane"](${b});
+  way["cycleway:both"="lane"](${b});
 );
 out geom;
 `
@@ -30,7 +39,7 @@ out geom;
 
 const BAD_SURFACES = new Set([
   'cobblestone', 'paving_stones', 'sett', 'unhewn_cobblestone',
-  'cobblestone:flattened',
+  'cobblestone:flattened', 'gravel', 'unpaved',
 ])
 
 /**
@@ -41,6 +50,25 @@ const BAD_SURFACES = new Set([
  *  trailer  — painted lanes → ok; share_busway → acceptable
  *  training — same as trailer; tolerates bad surfaces (no worsening)
  */
+const SEPARATION_TAGS = new Set([
+  'flex_post', 'separation_kerb', 'guard_rail',
+])
+
+function hasSeparation(tags: Record<string, string>): boolean {
+  const keys = [
+    'cycleway:separation',
+    'cycleway:right:separation',
+    'cycleway:left:separation',
+    'cycleway:both:separation',
+  ]
+  for (const key of keys) {
+    if (SEPARATION_TAGS.has(tags[key])) return true
+  }
+  // Buffer lane also counts as physical separation
+  if (tags['cycleway:buffer']) return true
+  return false
+}
+
 function classifyOsmTags(tags: Record<string, string>, profileKey?: string): SafetyClass {
   const highway = tags.highway ?? ''
   const cycleway = tags.cycleway ?? ''
@@ -48,7 +76,7 @@ function classifyOsmTags(tags: Record<string, string>, profileKey?: string): Saf
   const surface = tags.surface ?? ''
   const badSurface = BAD_SURFACES.has(surface)
 
-  const base = classifyOsmBase(highway, cycleway, bicycleRoad, profileKey)
+  const base = classifyOsmBase(highway, cycleway, bicycleRoad, tags, profileKey)
 
   // Bad surfaces worsen the class by one step — except for the training profile
   if (badSurface && profileKey !== 'training') return worsen(base)
@@ -59,13 +87,37 @@ function classifyOsmBase(
   highway: string,
   cycleway: string,
   bicycleRoad: boolean,
+  tags: Record<string, string>,
   profileKey?: string,
 ): SafetyClass {
   if (highway === 'cycleway' || bicycleRoad) return 'great'
+
+  // Car-free shared paths (park/canal/river paths and footway+bicycle=designated)
+  // These are physically separated from car traffic, so rated great regardless of profile.
+  if (highway === 'path' || highway === 'footway') return 'great'
+
+  // Dirt/gravel tracks accessible to bikes — great if paved/compacted, but BAD_SURFACES
+  // penalty in classifyOsmTags will worsen gravel/unpaved to 'good'.
+  if (highway === 'track') return 'great'
+
   if (cycleway === 'track' || cycleway === 'opposite_track') return 'good'
 
+  // Directional separated lanes via cycleway:right/left/both=track
+  const cRight = tags['cycleway:right'] ?? ''
+  const cLeft  = tags['cycleway:left']  ?? ''
+  const cBoth  = tags['cycleway:both']  ?? ''
+  if (cRight === 'track' || cLeft === 'track' || cBoth === 'track') return 'good'
+
   if (cycleway === 'lane' || cycleway === 'opposite_lane') {
+    // If the painted lane has physical separation (bollards, buffer, etc.), upgrade to good.
+    if (hasSeparation(tags)) return 'good'
     // toddler treats painted road lanes as no better than an unprotected road
+    return profileKey === 'toddler' ? 'avoid' : 'ok'
+  }
+
+  // Directional painted lanes via cycleway:right/left/both=lane
+  if (cRight === 'lane' || cLeft === 'lane' || cBoth === 'lane') {
+    if (hasSeparation(tags)) return 'good'
     return profileKey === 'toddler' ? 'avoid' : 'ok'
   }
 

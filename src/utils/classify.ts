@@ -184,6 +184,12 @@ function classifyBase(
 
   // ── Painted road bike lane (cycleway=lane) ───────────────────────────────
   // Profile-specific: for toddler this is "no better than a road without a bike path"
+  //
+  // NOTE: Valhalla's cycle_lane=2 always means a painted lane. The public Valhalla
+  // instance does NOT expose cycleway:separation or cycleway:buffer tags in edge
+  // attributes, so we cannot distinguish a plain painted lane from a bollard-protected
+  // one here. The overpass.ts overlay DOES check these separation tags directly from OSM
+  // and upgrades such lanes to 'good'. This is a known Valhalla API limitation.
   if (cycleLane === 2) {
     if (profileKey === 'toddler') return 'avoid'
     return 'ok'  // trailer and training: a dedicated lane is still better than nothing
