@@ -1,5 +1,20 @@
 # Architecture & Product Decisions
 
+## 2026-04-01: avoid_bad_surfaces calibration (Engeldam / Fahrradstraße routing)
+
+**Context**: Route from Dresdener Straße 112 → Schillingbrücke was not using the Fahrradstraße or the dirt path through the Engeldam park. Investigation confirmed this is a routing weight issue, not missing OSM data (Berlin OSM coverage for bike infra and park paths is excellent).
+
+**Root cause**: `avoid_bad_surfaces = 1.0` (toddler) and `0.9` (trailer) caused Valhalla to heavily penalise any surface that isn't smooth pavement — including compacted/dirt park paths like Engeldam (surface quality ~0.7–0.9 in Valhalla's model). The parameter was intended to avoid cobblestones (quality ~0.3), but it was too aggressive.
+
+**Decision**: Lower `avoid_bad_surfaces` to `0.5` for both toddler and trailer profiles.
+- `0.5` still strongly penalises cobblestones/sett (quality ~0.3) — effectively avoided
+- `0.5` allows compacted/dirt park paths (quality ~0.7–0.9) — unlocks Engeldam and similar
+- The `gravel` entry in our display `BAD_SURFACES` set is separate and unchanged (display only)
+
+**Status**: Implemented. Tests added for `classifyEdge` covering this scenario.
+
+---
+
 ## 2026-03-31: Multi-City Vision
 
 **Context**: Long-term product direction clarification from user.

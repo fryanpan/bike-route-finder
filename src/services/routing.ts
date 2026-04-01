@@ -62,10 +62,13 @@ export const DEFAULT_PROFILES: ProfileMap = {
       bicycle_type: 'Hybrid',
       cycling_speed: 10,
       use_roads: 0.0,          // avoid roads entirely — paths and Fahrradstrasse only
-      avoid_bad_surfaces: 1.0, // cobblestones avoided (spec: "avoid cobblestones")
+      avoid_bad_surfaces: 0.5, // avoids cobblestones (surface quality ~0.3) but allows
+                               // compacted/dirt park paths (quality ~0.7–0.9) like Engeldam.
+                               // 1.0 was too aggressive — penalised all non-smooth surfaces
+                               // including perfectly rideable park trails.
       use_hills: 0.1,          // nearly flat
       use_ferry: 0.0,
-      use_living_streets: 1.0, // Fahrradstrasse receive a large bonus via this param
+      use_living_streets: 1.0, // strongly prefers living streets / Fahrradstrasse-adjacent ways
     },
     editable: true,
   },
@@ -78,7 +81,8 @@ export const DEFAULT_PROFILES: ProfileMap = {
       bicycle_type: 'Hybrid',
       cycling_speed: 11,
       use_roads: 0.15,         // roadside bike lanes occasionally acceptable
-      avoid_bad_surfaces: 0.9, // cobblestones dangerous for trailer
+      avoid_bad_surfaces: 0.5, // same as toddler: avoids cobblestones, allows park paths.
+                               // 0.9 was blocking compacted/dirt trails that are safe for trailers.
       use_hills: 0.15,
       use_ferry: 0.0,
       use_living_streets: 0.9,
