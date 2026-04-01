@@ -3,16 +3,16 @@
  * Valhalla uses precision=6 (1e6 factor); Google uses precision=5.
  * Returns array of [lat, lng] pairs suitable for Leaflet.
  */
-export function decode(encoded, precision = 6) {
+export function decode(encoded: string, precision = 6): [number, number][] {
   const factor = Math.pow(10, precision)
   const len = encoded.length
   let index = 0
   let lat = 0
   let lng = 0
-  const coordinates = []
+  const coordinates: [number, number][] = []
 
   while (index < len) {
-    let b
+    let b: number
     let shift = 0
     let result = 0
     do {

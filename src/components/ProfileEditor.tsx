@@ -1,11 +1,18 @@
-/**
- * ProfileEditor — a modal that lets the user customise the Valhalla costing
- * parameters for any rider profile.
- */
+import type { RiderProfile, BicycleType, BicycleCostingOptions } from '../utils/types'
 
-const BIKE_TYPES = ['Hybrid', 'Road', 'Cross', 'Mountain']
+const BIKE_TYPES: BicycleType[] = ['Hybrid', 'Road', 'Cross', 'Mountain']
 
-function Slider({ label, hint, value, min, max, step = 0.05, onChange }) {
+interface SliderProps {
+  label: string
+  hint?: string
+  value: number
+  min: number
+  max: number
+  step?: number
+  onChange: (v: number) => void
+}
+
+function Slider({ label, hint, value, min, max, step = 0.05, onChange }: SliderProps) {
   return (
     <div className="pe-field">
       <div className="pe-field-header">
@@ -30,10 +37,16 @@ function Slider({ label, hint, value, min, max, step = 0.05, onChange }) {
   )
 }
 
-export default function ProfileEditor({ profile, onChange, onClose }) {
-  const opts = profile.costingOptions
+interface Props {
+  profile: RiderProfile
+  onChange: (updated: RiderProfile) => void
+  onClose: () => void
+}
 
-  function set(key, value) {
+export default function ProfileEditor({ profile, onChange, onClose }: Props) {
+  const opts: BicycleCostingOptions = profile.costingOptions
+
+  function set(key: keyof BicycleCostingOptions, value: number | string) {
     onChange({ ...profile, costingOptions: { ...opts, [key]: value } })
   }
 
@@ -82,7 +95,7 @@ export default function ProfileEditor({ profile, onChange, onClose }) {
 
           <Slider
             label="Paths vs roads preference"
-            hint="0 = always use paths/trails; 1 = prefer roads"
+            hint="0 = always use Fahrradstrasse/paths; 1 = prefer roads"
             value={opts.use_roads ?? 0.3}
             min={0}
             max={1}
@@ -91,7 +104,7 @@ export default function ProfileEditor({ profile, onChange, onClose }) {
 
           <Slider
             label="Surface quality importance"
-            hint="0 = tolerant of cobblestones/gravel; 1 = smooth surfaces only"
+            hint="0 = tolerant of cobblestones/gravel/tree-root paths; 1 = smooth only"
             value={opts.avoid_bad_surfaces ?? 0.5}
             min={0}
             max={1}
@@ -108,8 +121,8 @@ export default function ProfileEditor({ profile, onChange, onClose }) {
           />
 
           <Slider
-            label="Living streets preference"
-            hint="0 = avoid woonerven; 1 = strongly prefer them"
+            label="Fahrradstrasse / living streets preference"
+            hint="0 = avoid woonerven; 1 = strongly prefer Fahrradstrasse and quiet streets"
             value={opts.use_living_streets ?? 0.5}
             min={0}
             max={1}

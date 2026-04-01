@@ -1,16 +1,9 @@
-/**
- * Fetch cycling infrastructure from OpenStreetMap via Overpass API
- * for a given map bounding box, classified into our safety categories.
- */
-import { classifyEdge } from '../utils/classify.js'
+import type { SafetyClass, OsmWay } from '../utils/types'
+import type { LatLngBounds } from 'leaflet'
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
 
-/**
- * Build an Overpass QL query for bike infrastructure in a bounding box.
- * bbox = { south, west, north, east }
- */
-function buildQuery(bbox) {
+function buildQuery(bbox: { south: number; west: number; north: number; east: number }): string {
   const { south, west, north, east } = bbox
   const b = `${south},${west},${north},${east}`
   return `
@@ -30,19 +23,23 @@ out geom;
 `
 }
 
+const BAD_SURFACES = new Set([
+  'cobblestone', 'paving_stones', 'sett', 'unhewn_cobblestone',
+  'cobblestone:flattened',
+])
+
 /**
- * Map OSM tags to a safety class (mirrors classify.js logic but for raw OSM tags).
+ * Map raw OSM tags to a safety class (mirrors classify.ts logic for Valhalla edges).
+ * Used for the Overpass-based bike map overlay where we have direct OSM tag access.
+ *
+ * Note: unlike classifyEdge(), we CAN directly check bicycle_road=yes here,
+ * since Overpass returns raw OSM tags.
  */
-function classifyOsmTags(tags) {
+function classifyOsmTags(tags: Record<string, string>): SafetyClass {
   const highway = tags.highway ?? ''
   const cycleway = tags.cycleway ?? ''
   const bicycleRoad = tags.bicycle_road === 'yes'
   const surface = tags.surface ?? ''
-
-  const BAD_SURFACES = new Set([
-    'cobblestone', 'paving_stones', 'sett', 'unhewn_cobblestone',
-    'cobblestone:flattened',
-  ])
   const badSurface = BAD_SURFACES.has(surface)
 
   if (highway === 'cycleway' || bicycleRoad) return badSurface ? 'ok' : 'great'
@@ -56,11 +53,18 @@ function classifyOsmTags(tags) {
   return 'acceptable'
 }
 
+interface OverpassElement {
+  type: string
+  id: number
+  tags?: Record<string, string>
+  geometry?: Array<{ lat: number; lon: number }>
+}
+
 /**
  * Query bike infrastructure for the visible map bounds.
- * Returns array of { safetyClass, coordinates: [[lat,lng],...] }
+ * Returns null if the area is too large (zoom in more); throws on network error.
  */
-export async function fetchBikeInfra(bounds) {
+export async function fetchBikeInfra(bounds: LatLngBounds): Promise<OsmWay[] | null> {
   const bbox = {
     south: bounds.getSouth(),
     west: bounds.getWest(),
@@ -68,7 +72,7 @@ export async function fetchBikeInfra(bounds) {
     east: bounds.getEast(),
   }
 
-  // Refuse to query if the area is too large (> ~15km²) to avoid hammering Overpass
+  // Refuse to query if the area is too large (> ~15 km²) to avoid hammering Overpass
   const latSpan = bbox.north - bbox.south
   const lngSpan = bbox.east - bbox.west
   if (latSpan > 0.15 || lngSpan > 0.2) {
@@ -84,13 +88,15 @@ export async function fetchBikeInfra(bounds) {
 
   if (!response.ok) throw new Error('Overpass query failed')
 
-  const data = await response.json()
+  const data = await response.json() as { elements: OverpassElement[] }
 
   return data.elements
-    .filter((el) => el.type === 'way' && el.geometry)
+    .filter((el): el is OverpassElement & { geometry: NonNullable<OverpassElement['geometry']> } =>
+      el.type === 'way' && el.geometry != null,
+    )
     .map((el) => ({
       safetyClass: classifyOsmTags(el.tags ?? {}),
-      coordinates: el.geometry.map((pt) => [pt.lat, pt.lon]),
+      coordinates: el.geometry.map((pt): [number, number] => [pt.lat, pt.lon]),
       osmId: el.id,
       tags: el.tags ?? {},
     }))

@@ -1,4 +1,13 @@
-export default function ProfileSelector({ profiles, selected, onSelect, onEdit }) {
+import type { ProfileMap } from '../utils/types'
+
+interface Props {
+  profiles: ProfileMap
+  selected: string
+  onSelect: (key: string) => void
+  onEdit: (key: string) => void
+}
+
+export default function ProfileSelector({ profiles, selected, onSelect, onEdit }: Props) {
   return (
     <div className="profile-selector">
       <h3 className="section-title">Riding Profile</h3>

@@ -1,13 +1,11 @@
-/**
- * BikeMapOverlay — shows bike infrastructure for the visible map area,
- * colored by safety category, fetched live from Overpass API.
- */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet'
-import { fetchBikeInfra } from '../services/overpass.js'
-import { SAFETY } from '../utils/classify.js'
+import { fetchBikeInfra } from '../services/overpass'
+import { SAFETY } from '../utils/classify'
+import type { OsmWay } from '../utils/types'
+import type { LatLngBounds } from 'leaflet'
 
-function OverlayLines({ ways }) {
+function OverlayLines({ ways }: { ways: OsmWay[] }) {
   return (
     <>
       {ways.map((way) => {
@@ -33,18 +31,23 @@ function OverlayLines({ ways }) {
   )
 }
 
-function OverlayController({ enabled, onStatusChange }) {
+interface ControllerProps {
+  enabled: boolean
+  onStatusChange: (status: string) => void
+}
+
+function OverlayController({ enabled, onStatusChange }: ControllerProps) {
   const map = useMap()
-  const [ways, setWays] = useState([])
-  const debounceRef = useRef(null)
+  const [ways, setWays] = useState<OsmWay[]>([])
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     if (!enabled) return
     onStatusChange('loading')
     try {
-      const result = await fetchBikeInfra(map.getBounds())
+      const result = await fetchBikeInfra(map.getBounds() as LatLngBounds)
       if (result === null) {
-        onStatusChange('zoom') // area too large
+        onStatusChange('zoom')
         setWays([])
       } else {
         setWays(result)
@@ -55,14 +58,13 @@ function OverlayController({ enabled, onStatusChange }) {
     }
   }, [enabled, map, onStatusChange])
 
-  // Load on mount and whenever the map view changes
   useMapEvents({
     moveend() {
-      clearTimeout(debounceRef.current)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(load, 600)
     },
     zoomend() {
-      clearTimeout(debounceRef.current)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(load, 600)
     },
   })
@@ -74,13 +76,20 @@ function OverlayController({ enabled, onStatusChange }) {
       setWays([])
       onStatusChange('idle')
     }
-    return () => clearTimeout(debounceRef.current)
-  }, [enabled])  // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!enabled || !ways.length) return null
   return <OverlayLines ways={ways} />
 }
 
-export default function BikeMapOverlay({ enabled, onStatusChange }) {
+interface Props {
+  enabled: boolean
+  onStatusChange: (status: string) => void
+}
+
+export default function BikeMapOverlay({ enabled, onStatusChange }: Props) {
   return <OverlayController enabled={enabled} onStatusChange={onStatusChange} />
 }

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { formatDistance, formatDuration } from '../services/routing.js'
+import { formatDistance, formatDuration } from '../services/routing'
+import type { Route, ValhallaManeuver } from '../utils/types'
 
 // Valhalla maneuver type → direction icon
-const ICONS = {
-  1: '▶', // start
+const ICONS: Record<number, string> = {
+  1: '▶',  // start
   4: '🏁', // destination
-  7: '↑', // becomes
-  8: '↑', // continue
-  9: '↗', // slight right
+  7: '↑',  // becomes
+  8: '↑',  // continue
+  9: '↗',  // slight right
   10: '→', // right
   11: '↱', // sharp right
   12: '↩', // u-turn right
@@ -19,14 +20,14 @@ const ICONS = {
   18: '↗', // ramp right
   19: '↖', // ramp left
   26: '🔵', // roundabout enter
-  27: '↑', // roundabout exit
+  27: '↑',  // roundabout exit
 }
 
-function icon(type) {
+function icon(type: number): string {
   return ICONS[type] ?? '•'
 }
 
-function speak(text) {
+function speak(text: string): void {
   if (!('speechSynthesis' in window)) return
   window.speechSynthesis.cancel()
   const utt = new SpeechSynthesisUtterance(text)
@@ -35,7 +36,12 @@ function speak(text) {
   window.speechSynthesis.speak(utt)
 }
 
-export default function DirectionsPanel({ route, onClose }) {
+interface Props {
+  route: Route
+  onClose: () => void
+}
+
+export default function DirectionsPanel({ route, onClose }: Props) {
   const [navigating, setNavigating] = useState(false)
   const [step, setStep] = useState(0)
 
@@ -48,7 +54,8 @@ export default function DirectionsPanel({ route, onClose }) {
   function startNav() {
     setNavigating(true)
     setStep(0)
-    if (maneuvers[0]) speak(maneuvers[0].instruction)
+    const first = maneuvers[0] as ValhallaManeuver | undefined
+    if (first) speak(first.instruction)
   }
 
   function stopNav() {
@@ -56,10 +63,13 @@ export default function DirectionsPanel({ route, onClose }) {
     window.speechSynthesis?.cancel()
   }
 
-  function goToStep(n) {
+  function goToStep(n: number) {
     setStep(n)
-    if (maneuvers[n]) speak(maneuvers[n].instruction)
+    const m = maneuvers[n] as ValhallaManeuver | undefined
+    if (m) speak(m.instruction)
   }
+
+  const currentStep = maneuvers[step] as ValhallaManeuver | undefined
 
   return (
     <div className="directions-panel">
@@ -75,11 +85,11 @@ export default function DirectionsPanel({ route, onClose }) {
       {navigating ? (
         <div className="nav-active">
           <div className="nav-step-row">
-            <span className="nav-icon">{icon(maneuvers[step]?.type)}</span>
-            <p className="nav-instruction">{maneuvers[step]?.instruction}</p>
+            <span className="nav-icon">{icon(currentStep?.type ?? 0)}</span>
+            <p className="nav-instruction">{currentStep?.instruction}</p>
           </div>
-          {maneuvers[step]?.length != null && (
-            <p className="nav-dist">in {formatDistance(maneuvers[step].length)}</p>
+          {currentStep?.length != null && (
+            <p className="nav-dist">in {formatDistance(currentStep.length)}</p>
           )}
           <div className="nav-controls">
             <button
@@ -110,7 +120,7 @@ export default function DirectionsPanel({ route, onClose }) {
             ▶ Start Navigation
           </button>
           <ol className="maneuvers-list">
-            {maneuvers.map((m, i) => (
+            {(maneuvers as ValhallaManeuver[]).map((m, i) => (
               <li key={i} className="maneuver">
                 <span className="maneuver-icon">{icon(m.type)}</span>
                 <div className="maneuver-body">

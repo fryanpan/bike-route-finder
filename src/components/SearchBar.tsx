@@ -1,23 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { searchPlaces } from '../services/geocoding.js'
+import { searchPlaces } from '../services/geocoding'
+import type { Place } from '../utils/types'
 
-export default function SearchBar({ label, value, onSelect, placeholder }) {
+interface Props {
+  label: string
+  value: Place | null
+  onSelect: (place: Place) => void
+  placeholder: string
+}
+
+export default function SearchBar({ label, value, onSelect, placeholder }: Props) {
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState([])
+  const [suggestions, setSuggestions] = useState<Place[]>([])
   const [open, setOpen] = useState(false)
-  const containerRef = useRef(null)
-  const debounceRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync display when parent updates the selected value
   useEffect(() => {
     setQuery(value?.shortLabel ?? '')
   }, [value])
 
-  const handleChange = useCallback((e) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value
     setQuery(q)
 
-    clearTimeout(debounceRef.current)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     if (q.length >= 2) {
       debounceRef.current = setTimeout(async () => {
         try {
@@ -35,7 +43,7 @@ export default function SearchBar({ label, value, onSelect, placeholder }) {
   }, [])
 
   const handleSelect = useCallback(
-    (place) => {
+    (place: Place) => {
       setQuery(place.shortLabel)
       setSuggestions([])
       setOpen(false)
@@ -46,8 +54,8 @@ export default function SearchBar({ label, value, onSelect, placeholder }) {
 
   // Close suggestions on outside click
   useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }

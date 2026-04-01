@@ -1,3 +1,5 @@
+import type { Place } from '../utils/types'
+
 // In production (surge.sh), route through the Cloudflare Worker.
 // In dev, Vite proxy handles /api/* directly.
 const API_BASE = import.meta.env.VITE_WORKER_URL ?? '/api'
@@ -6,7 +8,7 @@ const API_BASE = import.meta.env.VITE_WORKER_URL ?? '/api'
  * Search for places using Nominatim (OpenStreetMap geocoding).
  * Proxied through /api/nominatim in dev (Vite); through Cloudflare Worker in production.
  */
-export async function searchPlaces(query) {
+export async function searchPlaces(query: string): Promise<Place[]> {
   if (!query || query.length < 2) return []
 
   const params = new URLSearchParams({
@@ -23,10 +25,16 @@ export async function searchPlaces(query) {
   const response = await fetch(`${API_BASE}/nominatim/search?${params}`)
   if (!response.ok) throw new Error('Geocoding search failed')
 
-  const results = await response.json()
+  const results = await response.json() as Array<{
+    display_name: string
+    name?: string
+    lat: string
+    lon: string
+  }>
+
   return results.map((r) => ({
     label: r.display_name,
-    shortLabel: r.name || r.display_name.split(',')[0],
+    shortLabel: r.name ?? r.display_name.split(',')[0],
     lat: parseFloat(r.lat),
     lng: parseFloat(r.lon),
   }))
@@ -34,9 +42,9 @@ export async function searchPlaces(query) {
 
 /**
  * Reverse geocode lat/lng to a place name.
- * Falls back to coordinate string if unavailable.
+ * Returns null if unavailable.
  */
-export async function reverseGeocode(lat, lng) {
+export async function reverseGeocode(lat: number, lng: number): Promise<Pick<Place, 'label' | 'shortLabel'> | null> {
   const params = new URLSearchParams({
     lat: lat.toString(),
     lon: lng.toString(),
@@ -47,11 +55,16 @@ export async function reverseGeocode(lat, lng) {
   try {
     const response = await fetch(`${API_BASE}/nominatim/reverse?${params}`)
     if (!response.ok) return null
-    const result = await response.json()
-    if (result.error) return null
+    const result = await response.json() as {
+      display_name?: string
+      name?: string
+      address?: { road?: string }
+      error?: string
+    }
+    if (result.error || !result.display_name) return null
     return {
       label: result.display_name,
-      shortLabel: (result.name || result.address?.road || result.display_name.split(',')[0]),
+      shortLabel: result.name ?? result.address?.road ?? result.display_name.split(',')[0],
     }
   } catch {
     return null

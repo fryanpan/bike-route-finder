@@ -1,51 +1,50 @@
 import { useState, useEffect } from 'react'
-import Map from './components/Map.jsx'
-import SearchBar from './components/SearchBar.jsx'
-import ProfileSelector from './components/ProfileSelector.jsx'
-import DirectionsPanel from './components/DirectionsPanel.jsx'
-import ProfileEditor from './components/ProfileEditor.jsx'
-import { getRoute, getRouteSegments, DEFAULT_PROFILES, formatDistance } from './services/routing.js'
-import { reverseGeocode } from './services/geocoding.js'
+import Map from './components/Map'
+import SearchBar from './components/SearchBar'
+import ProfileSelector from './components/ProfileSelector'
+import DirectionsPanel from './components/DirectionsPanel'
+import ProfileEditor from './components/ProfileEditor'
+import { getRoute, getRouteSegments, DEFAULT_PROFILES, formatDistance } from './services/routing'
+import { reverseGeocode } from './services/geocoding'
+import type { Place, Route, ProfileMap, RiderProfile } from './utils/types'
 
 const STORAGE_KEY = 'bike-route-profiles'
 
-function loadProfiles() {
+function loadProfiles(): ProfileMap {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
-      const parsed = JSON.parse(saved)
-      // Merge with defaults so new default keys are always present
+      const parsed = JSON.parse(saved) as ProfileMap
       return { ...DEFAULT_PROFILES, ...parsed }
     }
   } catch { /* ignore */ }
   return { ...DEFAULT_PROFILES }
 }
 
-function saveProfiles(profiles) {
+function saveProfiles(profiles: ProfileMap): void {
   try {
-    // Only persist profiles that differ from defaults (saves space)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles))
   } catch { /* ignore */ }
 }
 
-const MODE_HINT = {
+const MODE_HINT: Record<string, string> = {
   start:    '👆 Tap map or search to set start',
   end:      '👆 Tap map or search to set destination',
   waypoint: '👆 Tap to add waypoints — forces route through that point',
 }
 
 export default function App() {
-  const [profiles, setProfiles] = useState(loadProfiles)
+  const [profiles, setProfiles] = useState<ProfileMap>(loadProfiles)
   const [selectedProfile, setSelectedProfile] = useState('toddler')
-  const [editingProfile, setEditingProfile] = useState(null)  // key of profile being edited
+  const [editingProfile, setEditingProfile] = useState<string | null>(null)
 
-  const [startPoint, setStartPoint] = useState(null)
-  const [endPoint, setEndPoint]     = useState(null)
-  const [waypoints, setWaypoints]   = useState([])
+  const [startPoint, setStartPoint] = useState<Place | null>(null)
+  const [endPoint, setEndPoint]     = useState<Place | null>(null)
+  const [waypoints, setWaypoints]   = useState<Array<{ lat: number; lng: number }>>([])
 
-  const [route, setRoute]         = useState(null)
+  const [route, setRoute]         = useState<Route | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError]         = useState(null)
+  const [error, setError]         = useState<string | null>(null)
 
   const [clickMode, setClickMode]   = useState('start')
   const [panelOpen, setPanelOpen]   = useState(true)
@@ -53,13 +52,16 @@ export default function App() {
   const [overlayEnabled, setOverlayEnabled] = useState(false)
   const [overlayStatus, setOverlayStatus]   = useState('idle')
 
-  // Persist profile customisations
   useEffect(() => {
     saveProfiles(profiles)
   }, [profiles])
 
-  async function computeRoute(start, end, profileKey, wps) {
-    if (!start || !end) return
+  async function computeRoute(
+    start: Place,
+    end: Place,
+    profileKey: string,
+    wps: Array<{ lat: number; lng: number }>,
+  ) {
     const profile = profiles[profileKey]
     if (!profile) return
 
@@ -71,37 +73,37 @@ export default function App() {
       const result = await getRoute(start, end, profile, wps)
       setRoute(result)
 
-      // Enrich with colored segments in the background
-      getRouteSegments(result.coordinates).then((segments) => {
+      // Enrich with profile-aware colored segments in the background
+      getRouteSegments(result.coordinates, profileKey).then((segments) => {
         if (segments) {
           setRoute((r) => (r ? { ...r, segments } : r))
         }
       })
     } catch (e) {
-      setError(e.message ?? 'Could not find a route')
+      setError((e as Error).message ?? 'Could not find a route')
     } finally {
       setIsLoading(false)
     }
   }
 
-  function handleStartSelect(place) {
+  function handleStartSelect(place: Place) {
     setStartPoint(place)
     if (endPoint) computeRoute(place, endPoint, selectedProfile, waypoints)
   }
 
-  function handleEndSelect(place) {
+  function handleEndSelect(place: Place) {
     setEndPoint(place)
     if (startPoint) computeRoute(startPoint, place, selectedProfile, waypoints)
   }
 
-  function handleProfileChange(key) {
+  function handleProfileChange(key: string) {
     setSelectedProfile(key)
     if (startPoint && endPoint) computeRoute(startPoint, endPoint, key, waypoints)
   }
 
-  async function handleMapClick({ lat, lng }) {
+  async function handleMapClick({ lat, lng }: { lat: number; lng: number }) {
     const shortLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-    const point = { lat, lng, label: shortLabel, shortLabel }
+    const point: Place = { lat, lng, label: shortLabel, shortLabel }
 
     if (clickMode === 'start') {
       setStartPoint(point)
@@ -124,7 +126,7 @@ export default function App() {
     }
   }
 
-  function handleRemoveWaypoint(index) {
+  function handleRemoveWaypoint(index: number) {
     const newWps = waypoints.filter((_, i) => i !== index)
     setWaypoints(newWps)
     if (startPoint && endPoint) computeRoute(startPoint, endPoint, selectedProfile, newWps)
@@ -139,26 +141,14 @@ export default function App() {
     setError(null)
   }
 
-  function handleProfileEdit(key) {
-    setEditingProfile(key)
-  }
-
-  function handleProfileSave(updatedProfile) {
-    setProfiles((prev) => {
-      const next = { ...prev, [editingProfile]: updatedProfile }
-      return next
-    })
-    // Recompute route with new profile settings
-    if (startPoint && endPoint && editingProfile === selectedProfile) {
-      // Slight delay so state has updated
-      setTimeout(() => {
-        setProfiles((prev) => {
-          computeRoute(startPoint, endPoint, editingProfile, waypoints)
-          return prev
-        })
-      }, 0)
-    }
+  function handleProfileSave(updatedProfile: RiderProfile) {
+    if (!editingProfile) return
+    setProfiles((prev) => ({ ...prev, [editingProfile]: updatedProfile }))
     setEditingProfile(null)
+    if (startPoint && endPoint && editingProfile === selectedProfile) {
+      // Recompute with updated settings
+      setTimeout(() => computeRoute(startPoint, endPoint, editingProfile, waypoints), 0)
+    }
   }
 
   const overlayStatusMsg =
@@ -169,7 +159,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Map — fills remaining space */}
       <div className="map-wrap">
         <Map
           startPoint={startPoint}
@@ -183,9 +172,7 @@ export default function App() {
         />
       </div>
 
-      {/* Panel — bottom sheet on mobile, sidebar on desktop */}
       <div className={`panel${panelOpen ? ' panel-open' : ' panel-closed'}`}>
-        {/* Pull handle (mobile only) */}
         <div
           className="panel-handle"
           role="button"
@@ -196,14 +183,12 @@ export default function App() {
         </div>
 
         <div className="panel-content">
-          {/* Header */}
           <div className="panel-header">
             <div className="header-row">
               <div>
                 <h1 className="app-title">🚲 Berlin Bike Routes</h1>
                 <p className="app-subtitle">Family-friendly routing</p>
               </div>
-              {/* Bike map overlay toggle */}
               <button
                 className={`overlay-toggle${overlayEnabled ? ' overlay-on' : ''}`}
                 onClick={() => setOverlayEnabled((v) => !v)}
@@ -217,7 +202,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Search */}
           <div className="search-section">
             <SearchBar
               label="Start"
@@ -234,15 +218,13 @@ export default function App() {
             <p className="click-hint">{MODE_HINT[clickMode]}</p>
           </div>
 
-          {/* Profile selector */}
           <ProfileSelector
             profiles={profiles}
             selected={selectedProfile}
             onSelect={handleProfileChange}
-            onEdit={handleProfileEdit}
+            onEdit={(key) => setEditingProfile(key)}
           />
 
-          {/* Waypoints */}
           {waypoints.length > 0 && (
             <div className="waypoints-section">
               <div className="waypoints-row">
@@ -263,7 +245,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Loading */}
           {isLoading && (
             <div className="loading">
               <div className="spinner" />
@@ -271,31 +252,21 @@ export default function App() {
             </div>
           )}
 
-          {/* Error */}
           {error && <div className="error-msg">⚠️ {error}</div>}
 
-          {/* Directions */}
           {route && !isLoading && (
             <DirectionsPanel route={route} onClose={clearAll} />
           )}
         </div>
       </div>
 
-      {/* Profile editor modal */}
       {editingProfile && (
         <ProfileEditor
           profile={profiles[editingProfile]}
           onChange={(updated) => {
-            // Live preview: update profile state immediately
             setProfiles((prev) => ({ ...prev, [editingProfile]: updated }))
           }}
-          onClose={() => {
-            // Recompute route when editor closes if this profile is active
-            if (editingProfile === selectedProfile && startPoint && endPoint) {
-              computeRoute(startPoint, endPoint, editingProfile, waypoints)
-            }
-            setEditingProfile(null)
-          }}
+          onClose={() => handleProfileSave(profiles[editingProfile])}
         />
       )}
     </div>

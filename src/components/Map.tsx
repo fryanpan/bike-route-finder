@@ -1,13 +1,14 @@
 import L from 'leaflet'
-import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
-import { SAFETY } from '../utils/classify.js'
-import BikeMapOverlay from './BikeMapOverlay.jsx'
+import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
+import { SAFETY } from '../utils/classify'
+import BikeMapOverlay from './BikeMapOverlay'
+import type { Route, RouteSegment } from '../utils/types'
 
 // Fix Leaflet default icons broken by Vite's asset bundling
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
 import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
-delete L.Icon.Default.prototype._getIconUrl
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
 L.Icon.Default.mergeOptions({
   iconUrl: markerIconUrl,
   iconRetinaUrl: markerIcon2xUrl,
@@ -33,7 +34,7 @@ const waypointIcon = L.divIcon({
   iconAnchor: [13, 26],
 })
 
-function makeSegmentIcon(emoji) {
+function makeSegmentIcon(emoji: string): L.DivIcon {
   return L.divIcon({
     html: `<div class="seg-icon">${emoji}</div>`,
     className: '',
@@ -42,26 +43,22 @@ function makeSegmentIcon(emoji) {
   })
 }
 
-function ClickHandler({ onClick }) {
+function ClickHandler({ onClick }: { onClick: (latlng: L.LatLng) => void }) {
   useMapEvents({ click: (e) => onClick(e.latlng) })
   return null
 }
 
-/** Midpoint of an array of [lat,lng] coords */
-function midpoint(coords) {
-  const mid = Math.floor(coords.length / 2)
-  return coords[mid]
+function midpoint(coords: [number, number][]): [number, number] {
+  return coords[Math.floor(coords.length / 2)]
 }
 
-/** Render route as colored segments (from trace_attributes) or plain blue polyline */
-function RouteDisplay({ route }) {
+function RouteDisplay({ route }: { route: Route | null }) {
   if (!route) return null
 
-  // Colored segments available
   if (route.segments?.length) {
     return (
       <>
-        {route.segments.map((seg, i) => {
+        {route.segments.map((seg: RouteSegment, i: number) => {
           const s = SAFETY[seg.safetyClass] ?? SAFETY.acceptable
           return (
             <Polyline
@@ -77,21 +74,22 @@ function RouteDisplay({ route }) {
             </Polyline>
           )
         })}
-        {/* Path type icons at segment midpoints (skip very short segments) */}
         {route.segments
           .filter((seg) => seg.coordinates.length >= 4)
           .map((seg, i) => {
             const s = SAFETY[seg.safetyClass] ?? SAFETY.acceptable
-            const mid = midpoint(seg.coordinates)
             return (
-              <Marker key={`icon-${i}`} position={mid} icon={makeSegmentIcon(s.icon)} />
+              <Marker
+                key={`icon-${i}`}
+                position={midpoint(seg.coordinates)}
+                icon={makeSegmentIcon(s.icon)}
+              />
             )
           })}
       </>
     )
   }
 
-  // Fallback: plain blue polyline while segments are loading
   return (
     <Polyline
       positions={route.coordinates}
@@ -102,13 +100,17 @@ function RouteDisplay({ route }) {
   )
 }
 
-/** Legend overlay — shown bottom-right when route has colored segments or overlay is on */
-function Legend({ segments, overlayOn }) {
-  // Collect which safety classes are present in the route segments
+function Legend({
+  segments,
+  overlayOn,
+}: {
+  segments: RouteSegment[] | null
+  overlayOn: boolean
+}) {
   const classes = segments
     ? [...new Set(segments.map((s) => s.safetyClass))]
     : overlayOn
-    ? Object.keys(SAFETY)
+    ? (Object.keys(SAFETY) as (keyof typeof SAFETY)[])
     : []
 
   if (!classes.length) return null
@@ -128,6 +130,17 @@ function Legend({ segments, overlayOn }) {
   )
 }
 
+interface Props {
+  startPoint: { lat: number; lng: number; shortLabel?: string } | null
+  endPoint: { lat: number; lng: number; shortLabel?: string } | null
+  route: Route | null
+  waypoints: Array<{ lat: number; lng: number }>
+  onMapClick: (latlng: L.LatLng) => void
+  onRemoveWaypoint: (index: number) => void
+  overlayEnabled: boolean
+  onOverlayStatusChange: (status: string) => void
+}
+
 export default function Map({
   startPoint,
   endPoint,
@@ -137,7 +150,7 @@ export default function Map({
   onRemoveWaypoint,
   overlayEnabled,
   onOverlayStatusChange,
-}) {
+}: Props) {
   const routeSegments = route?.segments ?? null
 
   return (
@@ -153,40 +166,27 @@ export default function Map({
 
       <ClickHandler onClick={onMapClick} />
 
-      {/* Bike infrastructure overlay */}
       <BikeMapOverlay enabled={overlayEnabled} onStatusChange={onOverlayStatusChange} />
 
-      {/* Route */}
       <RouteDisplay route={route} />
 
-      {/* Start marker */}
       {startPoint && (
         <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon}>
-          <Popup>{startPoint.shortLabel || 'Start'}</Popup>
         </Marker>
       )}
 
-      {/* End marker */}
       {endPoint && (
         <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon}>
-          <Popup>{endPoint.shortLabel || 'End'}</Popup>
         </Marker>
       )}
 
-      {/* Waypoint markers */}
       {waypoints.map((wp, i) => (
-        <Marker key={i} position={[wp.lat, wp.lng]} icon={waypointIcon}>
-          <Popup>
-            <strong>Waypoint {i + 1}</strong>
-            <br />
-            <button style={{ marginTop: 4, cursor: 'pointer' }} onClick={() => onRemoveWaypoint(i)}>
-              Remove
-            </button>
-          </Popup>
+        <Marker key={i} position={[wp.lat, wp.lng]} icon={waypointIcon}
+          eventHandlers={{ click: () => onRemoveWaypoint(i) }}
+        >
         </Marker>
       ))}
 
-      {/* Legend */}
       <Legend segments={routeSegments} overlayOn={overlayEnabled} />
     </MapContainer>
   )

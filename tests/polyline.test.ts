@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { decode } from '../src/utils/polyline.js'
+import { describe, it, expect } from 'bun:test'
+import { decode } from '../src/utils/polyline'
 
 describe('decode (Valhalla precision-6 polyline)', () => {
   it('decodes a known short polyline (precision 5)', () => {
-    // Classic Google encoded polyline (precision 5): represents (38.5, -120.2), (40.7, -120.95), (43.252, -126.453)
+    // Classic Google encoded polyline (precision 5): (38.5, -120.2), (40.7, -120.95), (43.252, -126.453)
     const encoded = '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
     const result = decode(encoded, 5)
     expect(result).toHaveLength(3)
@@ -39,8 +39,6 @@ describe('decode (Valhalla precision-6 polyline)', () => {
   it('returns [lat, lng] order suitable for Leaflet', () => {
     const result = decode('_p~iF~ps|U', 5)
     expect(result[0]).toHaveLength(2)
-    // First element should be latitude (positive, ~38-50 range)
-    // Second should be longitude (negative for Americas)
     expect(result[0][0]).toBeGreaterThan(30) // lat
     expect(result[0][1]).toBeLessThan(0)     // lng (west of prime meridian)
   })
