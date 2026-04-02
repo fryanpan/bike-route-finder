@@ -3,6 +3,7 @@ const Map = lazy(() => import('./components/Map'))
 const ProfileEditor = lazy(() => import('./components/ProfileEditor'))
 import Legend from './components/Legend'
 import SearchBar from './components/SearchBar'
+import type { QuickOption } from './components/SearchBar'
 import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import FeedbackWidget from './components/FeedbackWidget'
@@ -11,6 +12,13 @@ import { reverseGeocode } from './services/geocoding'
 import { SAFETY_LEVEL, PROFILE_LEGEND } from './utils/classify'
 import type { LegendLevel } from './utils/classify'
 import type { Place, Route, ProfileMap, RiderProfile, SafetyClass } from './utils/types'
+
+const HOME_PLACE: Place = {
+  lat: 52.5016,
+  lng: 13.4103,
+  label: 'Dresdener Str 112, Berlin',
+  shortLabel: 'Dresdener Str 112',
+}
 
 const STORAGE_KEY = 'bike-route-profiles'
 
@@ -39,6 +47,8 @@ export default function App() {
   const [startPoint, setStartPoint] = useState<Place | null>(null)
   const [endPoint, setEndPoint]     = useState<Place | null>(null)
   const [waypoints]                 = useState<Array<{ lat: number; lng: number }>>([])
+
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const [route, setRoute]         = useState<Route | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -89,6 +99,18 @@ export default function App() {
     saveProfiles(profiles)
   }, [profiles])
 
+  // Track current location for the map dot. Silently no-ops if geolocation is denied.
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* permission denied or unavailable — ignore */ },
+      { enableHighAccuracy: false, timeout: 10000 },
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [])
+
+
   async function computeRoute(
     start: Place,
     end: Place,
@@ -122,6 +144,25 @@ export default function App() {
   function handleStartSelect(place: Place) {
     setStartPoint(place)
     if (endPoint) computeRoute(place, endPoint, selectedProfile, waypoints)
+  }
+
+  function handleSelectCurrentLocation() {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        setCurrentLocation({ lat, lng })
+        const geocoded = await reverseGeocode(lat, lng)
+        const place: Place = {
+          lat,
+          lng,
+          label: geocoded?.label ?? 'Current Location',
+          shortLabel: geocoded?.shortLabel ?? 'Current Location',
+        }
+        handleStartSelect(place)
+      },
+      () => { /* permission denied — ignore */ },
+    )
   }
 
   function handleEndSelect(place: Place) {
@@ -162,6 +203,19 @@ export default function App() {
     overlayStatus === 'error'   ? '⚠️ Could not load bike map' :
     null
 
+  const startQuickOptions: QuickOption[] = [
+    {
+      label: 'Current Location',
+      icon: '📍',
+      onSelect: handleSelectCurrentLocation,
+    },
+    {
+      label: 'Home',
+      icon: '🏠',
+      onSelect: () => handleStartSelect(HOME_PLACE),
+    },
+  ]
+
   return (
     <div className="app">
       <div className="map-wrap">
@@ -176,6 +230,7 @@ export default function App() {
             profileKey={selectedProfile}
             onOverlayStatusChange={setOverlayStatus}
             hiddenLevels={hiddenLevels}
+            currentLocation={currentLocation}
           />
         </Suspense>
         <div className="map-mode-overlay">
@@ -235,6 +290,7 @@ export default function App() {
               value={startPoint}
               onSelect={handleStartSelect}
               placeholder="Search start location…"
+              quickOptions={startQuickOptions}
             />
             <SearchBar
               label="End"
