@@ -120,7 +120,7 @@ async function fetchRoute(
 async function fetchRouteQuality(
   coords: [number, number][],
   profileKey: string,
-): Promise<{ great: number; ok: number; bad: number }> {
+): Promise<{ good: number; ok: number; bad: number }> {
   // Sample down to ≤150 points to keep the API call fast
   const stride = Math.max(1, Math.ceil(coords.length / 150))
   const sampled = coords.filter((_, i) => i % stride === 0)
