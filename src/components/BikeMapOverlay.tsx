@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet'
-import { fetchBikeInfra } from '../services/overpass'
+import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey } from '../services/overpass'
 import { SAFETY, SAFETY_LEVEL } from '../utils/classify'
 import type { LegendLevel } from '../utils/classify'
 import type { OsmWay } from '../utils/types'
-import type { LatLngBounds } from 'leaflet'
+
+// Max tiles allowed in viewport. Beyond this the map is too zoomed out to be
+// useful — show the "zoom in" prompt instead of firing many parallel requests.
+const MAX_VISIBLE_TILES = 12
 
 /** Derive a human-readable path type name from raw OSM tags. */
 function getPathTypeName(tags: Record<string, string>): string {
@@ -93,47 +96,125 @@ interface ControllerProps {
 
 function OverlayController({ enabled, profileKey, hiddenLevels, onStatusChange }: ControllerProps) {
   const map = useMap()
-  const [ways, setWays] = useState<OsmWay[]>([])
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Generation counter prevents stale loads from updating state after newer loads start
-  const loadIdRef = useRef(0)
 
-  const load = useCallback(async () => {
+  // Per-tile way data. Tiles accumulate as the user pans — previously loaded
+  // tiles remain visible so there's no blank-then-reload on pan/zoom.
+  const [tileData, setTileData] = useState<Map<string, OsmWay[]>>(new Map())
+
+  // Track which tiles are currently being fetched (avoids duplicate requests).
+  const loadingTilesRef = useRef<Set<string>>(new Set())
+  // Track which tiles have been successfully loaded (avoids re-fetching).
+  const loadedTilesRef  = useRef<Set<string>>(new Set())
+  // Generation counter — incremented on reset so stale callbacks don't write.
+  const generationRef   = useRef(0)
+
+  const loadVisibleTiles = useCallback(async () => {
     if (!enabled) return
-    const id = ++loadIdRef.current
+
+    const bounds = map.getBounds()
+    const tiles = getVisibleTiles(bounds)
+
+    // Too zoomed out — would require too many requests.
+    if (tiles.length > MAX_VISIBLE_TILES) {
+      onStatusChange('zoom')
+      return
+    }
+
+    // Determine which tiles still need fetching.
+    const toLoad = tiles.filter((t) => {
+      const k = tileKey(t.row, t.col, profileKey)
+      return !loadedTilesRef.current.has(k) && !loadingTilesRef.current.has(k)
+    })
+
+    if (toLoad.length === 0) {
+      onStatusChange('ok')
+      return
+    }
+
     onStatusChange('loading')
-    try {
-      const result = await fetchBikeInfra(map.getBounds() as LatLngBounds, profileKey)
-      if (id !== loadIdRef.current) return  // stale — a newer load already started
-      if (result === null) {
-        onStatusChange('zoom')
-      } else {
-        setWays(result)
-        onStatusChange('ok')
+    const generation = generationRef.current
+
+    // Mark all as in-flight before launching requests (prevents double-fetch).
+    for (const t of toLoad) {
+      loadingTilesRef.current.add(tileKey(t.row, t.col, profileKey))
+    }
+
+    let anyError = false
+
+    await Promise.all(toLoad.map(async (t) => {
+      const k = tileKey(t.row, t.col, profileKey)
+      try {
+        const ways = await fetchBikeInfraForTile(t.row, t.col, profileKey)
+        if (generationRef.current !== generation) return  // reset happened — discard
+        loadedTilesRef.current.add(k)
+        setTileData((prev) => {
+          const next = new Map(prev)
+          next.set(k, ways)
+          return next
+        })
+      } catch {
+        anyError = true
+      } finally {
+        loadingTilesRef.current.delete(k)
       }
-    } catch {
-      if (id !== loadIdRef.current) return
+    }))
+
+    if (generationRef.current !== generation) return
+
+    // Only report error if we have no data at all for the visible area.
+    const hasAnyVisibleData = tiles.some((t) =>
+      loadedTilesRef.current.has(tileKey(t.row, t.col, profileKey)) ||
+      isTileCached(t.row, t.col, profileKey)
+    )
+    if (anyError && !hasAnyVisibleData) {
       onStatusChange('error')
+    } else {
+      onStatusChange('ok')
     }
   }, [enabled, profileKey, map, onStatusChange])
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useMapEvents({
     moveend() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(load, 600)
+      debounceRef.current = setTimeout(loadVisibleTiles, 400)
     },
     zoomend() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(load, 600)
+      debounceRef.current = setTimeout(loadVisibleTiles, 400)
     },
   })
 
   useEffect(() => {
     if (enabled) {
-      load()
+      // Reset tile tracking when profile changes or overlay is re-enabled.
+      // Cached tile data in overpass.ts is still valid — only reset in-memory
+      // tracking so we re-populate tileData for the current viewport.
+      generationRef.current++
+      loadingTilesRef.current = new Set()
+      loadedTilesRef.current = new Set()
+
+      // Pre-populate tileData from the in-memory Overpass cache for instant display.
+      const bounds = map.getBounds()
+      const tiles = getVisibleTiles(bounds)
+      const preloaded = new Map<string, OsmWay[]>()
+      for (const t of tiles) {
+        const cached = getCachedTile(t.row, t.col, profileKey)
+        if (cached) {
+          const k = tileKey(t.row, t.col, profileKey)
+          preloaded.set(k, cached)
+          loadedTilesRef.current.add(k)
+        }
+      }
+      setTileData(preloaded)
+
+      loadVisibleTiles()
     } else {
-      loadIdRef.current++  // invalidate any in-flight load
-      setWays([])
+      generationRef.current++
+      loadingTilesRef.current = new Set()
+      loadedTilesRef.current = new Set()
+      setTileData(new Map())
       onStatusChange('idle')
     }
     return () => {
@@ -141,8 +222,13 @@ function OverlayController({ enabled, profileKey, hiddenLevels, onStatusChange }
     }
   }, [enabled, profileKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!enabled || !ways.length) return null
-  return <OverlayLines ways={ways} hiddenLevels={hiddenLevels} />
+  const allWays: OsmWay[] = []
+  for (const ways of tileData.values()) {
+    for (const w of ways) allWays.push(w)
+  }
+
+  if (!enabled || allWays.length === 0) return null
+  return <OverlayLines ways={allWays} hiddenLevels={hiddenLevels} />
 }
 
 interface Props {
