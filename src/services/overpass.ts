@@ -4,9 +4,53 @@ import type { LatLngBounds } from 'leaflet'
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
 
-// Simple in-memory cache keyed by bbox + profile. Avoids redundant Overpass
-// requests when the user pans back to an area or toggles the overlay off/on.
-const _cache = new Map<string, OsmWay[]>()
+// Tile size in degrees. At Berlin latitude (52°N):
+//   0.1° lat ≈ 11.1 km, 0.1° lng ≈ 6.7 km → ~74 km² per tile
+// A typical viewport (zoom 13–14) covers 2–4 tiles, so most pans reuse
+// already-loaded tiles rather than refetching the whole viewport.
+const TILE_DEGREES = 0.1
+
+// In-memory cache keyed by tile coords + profile.
+// Tiles are never evicted — memory stays small for typical usage.
+const _tileCache = new Map<string, OsmWay[]>()
+
+/** Canonical key for a tile. */
+export function tileKey(row: number, col: number, profileKey: string): string {
+  return `${row}:${col}:${profileKey}`
+}
+
+/** Tile row/col for a given latitude/longitude. */
+export function latLngToTile(lat: number, lng: number): { row: number; col: number } {
+  return {
+    row: Math.floor(lat / TILE_DEGREES),
+    col: Math.floor(lng / TILE_DEGREES),
+  }
+}
+
+/** All tile row/col pairs that intersect the given bounds. */
+export function getVisibleTiles(bounds: LatLngBounds): Array<{ row: number; col: number }> {
+  const minRow = Math.floor(bounds.getSouth() / TILE_DEGREES)
+  const maxRow = Math.floor(bounds.getNorth() / TILE_DEGREES)
+  const minCol = Math.floor(bounds.getWest() / TILE_DEGREES)
+  const maxCol = Math.floor(bounds.getEast() / TILE_DEGREES)
+  const tiles: Array<{ row: number; col: number }> = []
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      tiles.push({ row: r, col: c })
+    }
+  }
+  return tiles
+}
+
+/** True if the tile data for this key is already cached. */
+export function isTileCached(row: number, col: number, profileKey: string): boolean {
+  return _tileCache.has(tileKey(row, col, profileKey))
+}
+
+/** Return cached tile data, or undefined if not cached. */
+export function getCachedTile(row: number, col: number, profileKey: string): OsmWay[] | undefined {
+  return _tileCache.get(tileKey(row, col, profileKey))
+}
 
 function buildQuery(bbox: { south: number; west: number; north: number; east: number }): string {
   const { south, west, north, east } = bbox
@@ -169,47 +213,25 @@ interface OverpassElement {
   geometry?: Array<{ lat: number; lon: number }>
 }
 
-/**
- * Query bike infrastructure for the visible map bounds.
- * Returns null if the area is too large (zoom in more); throws on network error.
- * profileKey controls which safety classification rules are applied.
- */
-export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string): Promise<OsmWay[] | null> {
-  const bbox = {
-    south: bounds.getSouth(),
-    west: bounds.getWest(),
-    north: bounds.getNorth(),
-    east: bounds.getEast(),
+async function fetchWithRetry(url: string, init: RequestInit, retries = 1): Promise<Response> {
+  try {
+    const resp = await fetch(url, init)
+    if (!resp.ok && retries > 0) {
+      await new Promise((r) => setTimeout(r, 1500))
+      return fetchWithRetry(url, init, retries - 1)
+    }
+    return resp
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise((r) => setTimeout(r, 1500))
+      return fetchWithRetry(url, init, retries - 1)
+    }
+    throw err
   }
+}
 
-  // Refuse to query if the area is too large (> ~15 km²) to avoid hammering Overpass
-  const latSpan = bbox.north - bbox.south
-  const lngSpan = bbox.east - bbox.west
-  if (latSpan > 0.15 || lngSpan > 0.2) {
-    return null // zoom in more
-  }
-
-  const cacheKey = [
-    bbox.south.toFixed(4),
-    bbox.north.toFixed(4),
-    bbox.west.toFixed(4),
-    bbox.east.toFixed(4),
-    profileKey ?? '',
-  ].join(':')
-  if (_cache.has(cacheKey)) return _cache.get(cacheKey)!
-
-  const query = buildQuery(bbox)
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    body: `data=${encodeURIComponent(query)}`,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
-
-  if (!response.ok) throw new Error('Overpass query failed')
-
-  const data = await response.json() as { elements: OverpassElement[] }
-
-  const result = data.elements
+function parseOverpassResponse(data: { elements: OverpassElement[] }, profileKey?: string): OsmWay[] {
+  return data.elements
     .filter((el): el is OverpassElement & { geometry: NonNullable<OverpassElement['geometry']> } =>
       el.type === 'way' && el.geometry != null,
     )
@@ -219,7 +241,59 @@ export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string):
       osmId: el.id,
       tags: el.tags ?? {},
     }))
+}
 
-  _cache.set(cacheKey, result)
+/**
+ * Fetch bike infrastructure for a single tile, returning cached data immediately
+ * if available. Retries once on transient network/API errors.
+ */
+export async function fetchBikeInfraForTile(row: number, col: number, profileKey: string): Promise<OsmWay[]> {
+  const key = tileKey(row, col, profileKey)
+  if (_tileCache.has(key)) return _tileCache.get(key)!
+
+  const bbox = {
+    south: row * TILE_DEGREES,
+    north: (row + 1) * TILE_DEGREES,
+    west: col * TILE_DEGREES,
+    east: (col + 1) * TILE_DEGREES,
+  }
+
+  const query = buildQuery(bbox)
+  const response = await fetchWithRetry(OVERPASS_URL, {
+    method: 'POST',
+    body: `data=${encodeURIComponent(query)}`,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  })
+
+  if (!response.ok) throw new Error('Overpass query failed')
+
+  const data = await response.json() as { elements: OverpassElement[] }
+  const result = parseOverpassResponse(data, profileKey)
+  _tileCache.set(key, result)
   return result
+}
+
+/**
+ * @deprecated Use getVisibleTiles + fetchBikeInfraForTile instead.
+ *
+ * Legacy single-viewport fetch kept for reference. Tiles are more efficient
+ * because they are cached individually across pans.
+ */
+export async function fetchBikeInfra(bounds: LatLngBounds, profileKey?: string): Promise<OsmWay[] | null> {
+  const bbox = {
+    south: bounds.getSouth(),
+    west: bounds.getWest(),
+    north: bounds.getNorth(),
+    east: bounds.getEast(),
+  }
+
+  const latSpan = bbox.north - bbox.south
+  const lngSpan = bbox.east - bbox.west
+  if (latSpan > 0.15 || lngSpan > 0.2) return null
+
+  const tiles = getVisibleTiles(bounds)
+  const results = await Promise.all(
+    tiles.map((t) => fetchBikeInfraForTile(t.row, t.col, profileKey ?? ''))
+  )
+  return results.flat()
 }

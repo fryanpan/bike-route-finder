@@ -1,5 +1,24 @@
 # Architecture & Product Decisions
 
+## 2026-04-02: Tile-based bike map caching (BC-249)
+
+**Context**: The bike infrastructure overlay fetched the entire visible viewport as a single Overpass request on every pan/zoom. This caused visible blank areas during the 1–2s Overpass round-trip. Cache key used exact bbox coordinates so any pan produced a cache miss.
+
+**Decision**: Replace single-viewport fetching with fixed-size tile grid (0.1° × 0.1° tiles, ~74 km² each). Tiles are cached individually in memory.
+- **Panning**: already-loaded tiles stay visible instantly; only new tiles fetch
+- **Zooming**: all tiles for the new view pre-populate from cache if available; uncached tiles load in parallel
+- **Profile change**: tile cache in overpass.ts (keyed by profile) is retained; component tracking resets and re-populates from cache instantly
+
+**Error handling**: Added 1-retry-with-1.5s-delay on Overpass failures. "Could not load" error only shown if all visible tiles failed — partial failures silently succeed since other tiles are still shown.
+
+**Data source**: Stays as overpass-api.de. Self-hosted Overpass could improve latency but adds operational complexity. Tile caching greatly reduces request volume, making the public API viable.
+
+**Tile size rationale**: 0.1° → 2–4 tiles per typical viewport (zoom 13–14). Small enough for fast parallel fetches; large enough that panning a half-screen reuses 50%+ of loaded tiles.
+
+**Status**: Implemented. 74 tests pass.
+
+---
+
 ## 2026-04-01: Three-color status indicator system (BC-243)
 
 **Context**: The map overlay and route polylines were showing 4 distinct colors (green, blue, amber, red) for the 4 internal SafetyClass levels, while the route quality bar and profile editor badges were already using a consistent 3-color system (green/amber/red).

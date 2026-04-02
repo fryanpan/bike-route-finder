@@ -1,5 +1,15 @@
 # Retrospective Log
 
+## 2026-04-02 — BC-249 Tile-based map caching
+
+**What worked:** Splitting viewport fetch into tile-based parallel requests with per-tile caching was straightforward. The key insight: use refs (`loadedTilesRef`, `loadingTilesRef`, `generationRef`) so the `loadVisibleTiles` callback has no stale-closure dependency on component state — only on stable values (`enabled`, `profileKey`, `map`, `onStatusChange`).
+
+**What didn't:** `bunx tsc --noEmit` with bunx downloads a different npm package named `tsc`. Use `bun test` + the project's local vite build instead. Pre-existing TypeScript errors (missing `@types/react` in standalone tsc) are unrelated.
+
+**Action:** When checking types in Vite+Bun projects, trust `bun test` + `bun run build` (not standalone tsc via bunx).
+
+---
+
 ## 2026-03-31 — BC-222 Initial Prototype
 
 **What worked:**
