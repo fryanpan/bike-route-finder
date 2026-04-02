@@ -61,8 +61,8 @@ function OverlayLines({ ways, hiddenLevels }: { ways: OsmWay[]; hiddenLevels: Se
             key={way.osmId}
             positions={way.coordinates}
             color={s.color}
-            weight={3}
-            opacity={0.6}
+            weight={5}
+            opacity={0.7}
           >
             <Tooltip sticky direction="top" offset={[0, -4]}>
               <div style={{ fontSize: 12, lineHeight: '1.5', maxWidth: 240 }}>

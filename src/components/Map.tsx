@@ -62,7 +62,7 @@ function RouteDisplay({ route }: { route: Route | null }) {
               key={i}
               positions={seg.coordinates}
               color={s.color}
-              weight={8}
+              weight={12}
               opacity={0.95}
             >
               <Tooltip sticky direction="top" offset={[0, -6]}>
@@ -91,7 +91,7 @@ function RouteDisplay({ route }: { route: Route | null }) {
     <Polyline
       positions={route.coordinates}
       color="#2563eb"
-      weight={8}
+      weight={12}
       opacity={0.9}
     />
   )
