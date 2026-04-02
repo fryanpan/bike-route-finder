@@ -97,6 +97,13 @@ function RouteDisplay({ route }: { route: Route | null }) {
   )
 }
 
+const currentLocationIcon = L.divIcon({
+  html: '<div class="current-location-dot"><div class="current-location-pulse"></div></div>',
+  className: '',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+})
+
 interface Props {
   startPoint: { lat: number; lng: number; shortLabel?: string } | null
   endPoint: { lat: number; lng: number; shortLabel?: string } | null
@@ -107,6 +114,7 @@ interface Props {
   profileKey: string
   onOverlayStatusChange: (status: string) => void
   hiddenLevels: Set<LegendLevel>
+  currentLocation: { lat: number; lng: number } | null
 }
 
 export default function Map({
@@ -119,6 +127,7 @@ export default function Map({
   profileKey,
   onOverlayStatusChange,
   hiddenLevels,
+  currentLocation,
 }: Props) {
   return (
     <MapContainer
@@ -156,6 +165,14 @@ export default function Map({
         >
         </Marker>
       ))}
+
+      {currentLocation && (
+        <Marker
+          position={[currentLocation.lat, currentLocation.lng]}
+          icon={currentLocationIcon}
+          zIndexOffset={-100}
+        />
+      )}
     </MapContainer>
   )
 }
