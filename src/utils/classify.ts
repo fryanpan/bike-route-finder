@@ -1,12 +1,12 @@
 import type { SafetyClass, SafetyInfo, ValhallaEdge, RouteSegment } from './types'
 
-// Three-color display palette: green / amber / red
-// 'great' and 'good' both show green — they're grouped into the same top-tier
-// display level (LegendLevel='great' / RouteQuality.great) so they share one color.
+// Three-color display palette: teal-green / orange / rose
+// Chosen for high contrast against OpenStreetMap tile backgrounds (sage park greens,
+// beige/gray roads, light-blue water). 'great' and 'good' both show teal-green.
 export const STATUS_COLOR = {
-  green: '#22c55e',
-  amber: '#f59e0b',
-  red:   '#ef4444',
+  green: '#10b981',
+  amber: '#f97316',
+  red:   '#e11d48',
 } as const
 
 export const SAFETY: Record<SafetyClass, SafetyInfo> = {

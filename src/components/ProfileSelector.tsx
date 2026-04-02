@@ -4,9 +4,9 @@ import type { ProfileMap } from '../utils/types'
 // --- Mode-specific SVG icons ---
 
 function ToddlerModeIcon() {
-  // Adult bike (left) + child bike (right, smaller)
+  // Adult bike (left) + child bike (right, smaller) — 8px gap between bikes
   return (
-    <svg width="36" height="22" viewBox="0 0 56 32" fill="none" aria-hidden="true">
+    <svg width="40" height="22" viewBox="0 0 62 32" fill="none" aria-hidden="true">
       {/* Adult bike */}
       <circle cx="9" cy="22" r="8" stroke="currentColor" strokeWidth="1.6"/>
       <circle cx="27" cy="22" r="8" stroke="currentColor" strokeWidth="1.6"/>
@@ -21,19 +21,19 @@ function ToddlerModeIcon() {
       {/* Handlebar */}
       <line x1="20" y1="10" x2="24" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
 
-      {/* Child bike (smaller, offset right) */}
-      <circle cx="38" cy="25" r="5.5" stroke="currentColor" strokeWidth="1.4"/>
-      <circle cx="50" cy="25" r="5.5" stroke="currentColor" strokeWidth="1.4"/>
+      {/* Child bike (smaller, offset right with extra gap) */}
+      <circle cx="44" cy="25" r="5.5" stroke="currentColor" strokeWidth="1.4"/>
+      <circle cx="56" cy="25" r="5.5" stroke="currentColor" strokeWidth="1.4"/>
       {/* Rear triangle */}
-      <path d="M38 25 L44 25 L42 17.5 Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round"/>
+      <path d="M44 25 L50 25 L48 17.5 Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round"/>
       {/* Top tube + fork */}
-      <path d="M42 17.5 L47.5 17.5 L50 25" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round"/>
+      <path d="M48 17.5 L53.5 17.5 L56 25" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round"/>
       {/* Down tube */}
-      <line x1="47.5" y1="17.5" x2="44" y2="25" stroke="currentColor" strokeWidth="1.3"/>
+      <line x1="53.5" y1="17.5" x2="50" y2="25" stroke="currentColor" strokeWidth="1.3"/>
       {/* Seat */}
-      <line x1="40" y1="17.5" x2="44" y2="17.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <line x1="46" y1="17.5" x2="50" y2="17.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
       {/* Handlebar */}
-      <line x1="45.5" y1="15.5" x2="49" y2="15.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <line x1="51.5" y1="15.5" x2="55" y2="15.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
     </svg>
   )
 }
@@ -116,14 +116,13 @@ export default function ProfileSelector({ profiles, selected, onSelect, onEdit }
             key={key}
             className={`profile-chip${selected === key ? ' selected' : ''}`}
             onClick={() => onSelect(key)}
-            title={profile.description}
+            title={`${profile.label}\n${profile.description}`}
           >
             <span className="profile-chip-icon">
               {PROFILE_ICONS[key] ?? (
                 <span className="profile-chip-emoji">{profile.emoji}</span>
               )}
             </span>
-            <span className="profile-chip-label">{profile.label}</span>
           </button>
         ))}
         <button
@@ -131,7 +130,7 @@ export default function ProfileSelector({ profiles, selected, onSelect, onEdit }
           onClick={() => onEdit(selected)}
           title="Customise profile"
         >
-          ⚙️
+          ✏️
         </button>
       </div>
     </div>

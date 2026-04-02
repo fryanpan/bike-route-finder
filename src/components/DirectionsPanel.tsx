@@ -97,13 +97,13 @@ export default function DirectionsPanel({ route, onClose }: Props) {
               <div className="qb-segment qb-ok" style={{ flex: quality.ok }} title={`${Math.round(quality.ok * 100)}% ok`} />
             )}
             {quality.bad > 0 && (
-              <div className="qb-segment qb-bad" style={{ flex: quality.bad }} title={`${Math.round(quality.bad * 100)}% avoid`} />
+              <div className="qb-segment qb-bad" style={{ flex: quality.bad }} title={`${Math.round(quality.bad * 100)}% bad`} />
             )}
           </div>
           <div className="quality-labels">
             {quality.good > 0.05 && <span className="ql-good">{Math.round(quality.good * 100)}% good</span>}
             {quality.ok   > 0.05 && <span className="ql-ok">{Math.round(quality.ok    * 100)}% ok</span>}
-            {quality.bad  > 0.05 && <span className="ql-bad">{Math.round(quality.bad   * 100)}% avoid</span>}
+            {quality.bad  > 0.05 && <span className="ql-bad">{Math.round(quality.bad   * 100)}% bad</span>}
           </div>
         </div>
       )}
