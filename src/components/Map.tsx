@@ -50,7 +50,7 @@ function MapCenterController({ currentLocation }: { currentLocation: { lat: numb
 
   useEffect(() => {
     if (currentLocation && !hasCentered.current) {
-      map.setView([currentLocation.lat, currentLocation.lng], 13)
+      map.setView([currentLocation.lat, currentLocation.lng], 14)
       hasCentered.current = true
     }
   }, [currentLocation, map])
