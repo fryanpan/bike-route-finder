@@ -253,6 +253,24 @@ interface ClassifiedPoint {
 }
 
 /**
+ * Returns all route segments for map display.
+ *
+ * ALL segments are always shown — preferred segments in green, non-preferred
+ * in orange. The user sees the complete route path regardless of their
+ * profile preferences. This is intentional: the route IS the path, so hiding
+ * any part of it would be misleading.
+ *
+ * The showOtherPaths toggle (in the Legend) controls the OVERLAY (background
+ * infrastructure tiles), NOT the route segments returned here.
+ *
+ * This function is extracted as a pure function for regression-test coverage.
+ * Do NOT add preference-based filtering here — that broke display before.
+ */
+export function filterVisibleSegments(segments: RouteSegment[]): RouteSegment[] {
+  return segments
+}
+
+/**
  * Group an array of { itemName, coord } points into contiguous RouteSegments of the same item.
  */
 export function buildSegments(classified: ClassifiedPoint[]): RouteSegment[] {
