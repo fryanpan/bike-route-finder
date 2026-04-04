@@ -16,7 +16,7 @@ const TILE_DEGREES = 0.1
 
 // In-memory cache keyed by tile coords only — profile-independent.
 // The Overpass query is identical for all profiles; itemName is computed
-// from raw tags at render time so mode switching is instant without re-fetching.
+// from raw tags at render time so travel mode switching is instant without re-fetching.
 // Tiles are never evicted — memory stays small for typical usage.
 const _tileCache = new Map<string, OsmWay[]>()
 
@@ -125,7 +125,7 @@ out geom;
  * Must stay in sync with classifyEdgeToItem() in classify.ts.
  *
  * Exported so BikeMapOverlay can call this at render time with the current
- * profileKey — that way the cache is profile-independent and mode switching
+ * profileKey — that way the cache is profile-independent and travel mode switching
  * is instant (no re-fetch needed).
  *
  * Valhalla↔OSM mapping: see classify.ts comment block for the full correlation.
@@ -251,7 +251,7 @@ function parseOverpassResponse(data: { elements: OverpassElement[] }): OsmWay[] 
  *
  * The returned OsmWay objects have itemName: null — call classifyOsmTagsToItem()
  * with the current profileKey at render time to get the profile-specific name.
- * This keeps the cache profile-independent so mode switching is instant.
+ * This keeps the cache profile-independent so travel mode switching is instant.
  */
 export async function fetchBikeInfraForTile(row: number, col: number): Promise<OsmWay[]> {
   const key = tileKey(row, col)

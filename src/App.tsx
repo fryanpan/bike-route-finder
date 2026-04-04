@@ -33,7 +33,7 @@ const SCHOOL_PLACE: Place = {
 
 const STORAGE_KEY = 'bike-route-profiles'
 const CUSTOM_PREFERRED_KEY = 'bike-route-custom-preferred'
-const CUSTOM_MODE_KEY = 'bike-route-mode'
+const TRAVEL_MODE_KEY = 'bike-route-travel-mode'
 
 function loadProfiles(): ProfileMap {
   try {
@@ -61,7 +61,7 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 /** Read initial profile + preferred items from URL params, then localStorage, then defaults. */
 function getInitialState(): { profileKey: string; preferredItems: Set<string>; showOtherPaths: boolean } {
   const params = new URLSearchParams(window.location.search)
-  const modeParam = params.get('mode')
+  const modeParam = params.get('travelMode')
   const preferredParam = params.get('preferred')
   const showOtherParam = params.get('showOther')
 
@@ -74,14 +74,14 @@ function getInitialState(): { profileKey: string; preferredItems: Set<string>; s
     return { profileKey: profile, preferredItems: items, showOtherPaths }
   }
 
-  // URL mode param (no custom preferred)
+  // URL travel mode param (no custom preferred)
   if (modeParam && DEFAULT_PROFILES[modeParam]) {
     return { profileKey: modeParam, preferredItems: getDefaultPreferredItems(modeParam), showOtherPaths }
   }
 
   // Fall back to localStorage
   try {
-    const savedMode = localStorage.getItem(CUSTOM_MODE_KEY)
+    const savedMode = localStorage.getItem(TRAVEL_MODE_KEY)
     const savedCustom = localStorage.getItem(CUSTOM_PREFERRED_KEY)
     if (savedCustom) {
       const items = new Set(JSON.parse(savedCustom) as string[])
@@ -123,14 +123,14 @@ export default function App() {
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [overlayStatus, setOverlayStatus]   = useState('idle')
 
-  // Derived: is the user in custom mode (preferred differs from profile defaults)?
-  const isCustomMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
+  // Derived: has the user customized their travel mode's preferred path types?
+  const isCustomTravelMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
 
   // Sync URL params and localStorage on every state change
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    params.set('mode', selectedProfile)
-    if (isCustomMode) {
+    params.set('travelMode', selectedProfile)
+    if (isCustomTravelMode) {
       params.set('preferred', [...preferredItemNames].join(','))
     } else {
       params.delete('preferred')
@@ -143,14 +143,14 @@ export default function App() {
     window.history.replaceState({}, '', `?${params.toString()}`)
 
     try {
-      localStorage.setItem(CUSTOM_MODE_KEY, selectedProfile)
-      if (isCustomMode) {
+      localStorage.setItem(TRAVEL_MODE_KEY, selectedProfile)
+      if (isCustomTravelMode) {
         localStorage.setItem(CUSTOM_PREFERRED_KEY, JSON.stringify([...preferredItemNames]))
       } else {
         localStorage.removeItem(CUSTOM_PREFERRED_KEY)
       }
     } catch { /* ignore */ }
-  }, [selectedProfile, preferredItemNames, isCustomMode, showOtherPaths])
+  }, [selectedProfile, preferredItemNames, isCustomTravelMode, showOtherPaths])
 
   useEffect(() => {
     saveProfiles(profiles)
@@ -258,7 +258,7 @@ export default function App() {
 
   function handleProfileChange(key: string) {
     setSelectedProfile(key)
-    // Reset preferred items to this profile's defaults (clears custom mode)
+    // Reset preferred items to this travel mode's defaults
     setPreferredItemNames(getDefaultPreferredItems(key))
     if (startPoint && endPoint) computeRoute(startPoint, endPoint, key, waypoints)
   }
@@ -360,7 +360,7 @@ export default function App() {
             selected={selectedProfile}
             onSelect={handleProfileChange}
             onEdit={(key) => setEditingProfile(key)}
-            isCustomMode={isCustomMode}
+            isCustomTravelMode={isCustomTravelMode}
           />
         </div>
         {/* Top-right controls: feedback button + legend, laid out as a flex row */}

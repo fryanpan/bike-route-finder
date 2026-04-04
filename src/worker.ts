@@ -58,7 +58,7 @@ export default {
     //
     // ?row=&col= query params identify the tile for the cache key.
     // Profile is intentionally excluded — the Overpass query is profile-independent
-    // so one cache entry serves all modes.
+    // so one cache entry serves all travel modes.
     if (path === '/api/overpass') {
       const row = url.searchParams.get('row') ?? ''
       const col = url.searchParams.get('col') ?? ''
