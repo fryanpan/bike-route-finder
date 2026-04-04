@@ -328,7 +328,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Travel mode selector map overlay ─────────────────── */
 .map-travel-mode {
   position: absolute;
-  top: 12px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 450;
@@ -682,12 +682,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 /* When routing, push controls below the routing header */
 .ui-routing .map-top-right { top: 140px; }
-.ui-routing .map-travel-mode { top: 110px; }
+.ui-routing .map-travel-mode { top: 120px; }
 @media (min-width: 768px) {
   .map-top-right {
     top: 12px;
   }
   .ui-routing .map-top-right { top: 12px; right: 10px; }
+  .map-travel-mode { top: 12px; }
   .ui-routing .map-travel-mode { top: 12px; }
 }
 
