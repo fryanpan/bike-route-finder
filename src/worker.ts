@@ -7,8 +7,13 @@
  * Routes:
  *   /api/valhalla/*   → proxy to valhalla1.openstreetmap.de
  *   /api/nominatim/*  → proxy to nominatim.openstreetmap.org
+ *   /api/overpass     → proxy to overpass-api.de with 7-day edge cache
  *   POST /api/feedback → create a Linear issue from user feedback
  */
+
+// Cloudflare Workers extends the standard CacheStorage interface with a `default`
+// cache instance. This is not in the DOM lib types, so we declare it here.
+declare const caches: CacheStorage & { default: Cache }
 
 type Env = {
   LINEAR_API_KEY?: string
