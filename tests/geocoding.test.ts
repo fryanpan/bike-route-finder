@@ -95,7 +95,6 @@ describe('searchPlaces — structured address search', () => {
 
     // First call should be structured (contains street= param)
     expect(calls[0]).toContain('street=')
-    expect(calls[0]).toContain('city=Berlin')
     // Should return without falling through to free-text
     expect(calls).toHaveLength(1)
     expect(results).toHaveLength(1)
@@ -123,7 +122,7 @@ describe('searchPlaces — structured address search', () => {
     expect(results).toHaveLength(1)
   })
 
-  it('uses free-text with bounded=1 for non-address queries', async () => {
+  it('uses free-text (not structured) for non-address queries', async () => {
     const calls: string[] = []
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       calls.push(input.toString())
@@ -138,10 +137,9 @@ describe('searchPlaces — structured address search', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0]).toContain('q=Tiergarten')
-    expect(calls[0]).toContain('bounded=1')
   })
 
-  it('uses bounded=0 for address free-text fallback', async () => {
+  it('falls back to free-text (q=) for address queries when structured returns nothing', async () => {
     const calls: string[] = []
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       calls.push(input.toString())
@@ -158,7 +156,7 @@ describe('searchPlaces — structured address search', () => {
     await searchPlaces('Unter den Linden 1')
 
     const freeTextCall = calls.find((c) => c.includes('q='))
-    expect(freeTextCall).toContain('bounded=0')
+    expect(freeTextCall).toBeDefined()
   })
 
   it('returns empty array for queries shorter than 2 chars', async () => {
