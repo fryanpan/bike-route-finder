@@ -8,7 +8,7 @@ import type { QuickOption } from './components/SearchBar'
 import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import FeedbackWidget from './components/FeedbackWidget'
-import { getRoute, getRouteSegments, DEFAULT_PROFILES } from './services/routing'
+import { getRoute, getRouteSegments, DEFAULT_PROFILES, formatDistance, formatDuration } from './services/routing'
 import { reverseGeocode } from './services/geocoding'
 import {
   getDefaultPreferredItems,
@@ -22,6 +22,13 @@ const HOME_PLACE: Place = {
   lng: 13.4103,
   label: 'Dresdener Str 112, Berlin',
   shortLabel: 'Dresdener Str 112',
+}
+
+const SCHOOL_PLACE: Place = {
+  lat: 52.5105,
+  lng: 13.4247,
+  label: 'Wilhelmine-Gemberg-Weg 10, Berlin',
+  shortLabel: 'Wilhelmine-Gemberg-Weg 10',
 }
 
 const STORAGE_KEY = 'bike-route-profiles'
@@ -186,6 +193,7 @@ export default function App() {
       const costingOptions = getCostingFromPreferences(preferredItemNames, profileKey, profile)
       const result = await getRoute(start, end, { ...profile, costingOptions }, wps)
       setRoute(result)
+      setPanelOpen(false)
 
       // Enrich with profile-aware colored segments in the background
       getRouteSegments(result.coordinates, profileKey).then((segments) => {
@@ -267,6 +275,14 @@ export default function App() {
     setError(null)
   }
 
+  function handleSwap() {
+    const newStart = endPoint
+    const newEnd = startPoint
+    setStartPoint(newStart)
+    setEndPoint(newEnd)
+    if (newStart && newEnd) void computeRoute(newStart, newEnd, selectedProfile, waypoints)
+  }
+
   function handleProfileSave(updatedProfile: RiderProfile) {
     if (!editingProfile) return
     setProfiles((prev) => ({ ...prev, [editingProfile]: updatedProfile }))
@@ -294,6 +310,11 @@ export default function App() {
       icon: '🏠',
       onSelect: () => handleStartSelect(HOME_PLACE),
     },
+    {
+      label: 'School',
+      icon: '🏫',
+      onSelect: () => handleStartSelect(SCHOOL_PLACE),
+    },
   ]
 
   const endQuickOptions: QuickOption[] = [
@@ -307,6 +328,11 @@ export default function App() {
       label: 'Home',
       icon: '🏠',
       onSelect: () => handleEndSelect(HOME_PLACE),
+    },
+    {
+      label: 'School',
+      icon: '🏫',
+      onSelect: () => handleEndSelect(SCHOOL_PLACE),
     },
   ]
 
@@ -374,6 +400,34 @@ export default function App() {
           <div className="handle-bar" />
         </div>
 
+        {/* Collapsed search strip — visible only when panel is closed */}
+        <div
+          className="collapsed-strip"
+          role="button"
+          aria-label="Open search"
+          onClick={() => setPanelOpen(true)}
+        >
+          <div className="cs-row">
+            <div className="cs-endpoint">
+              <span className="cs-icon">📍</span>
+              <span className={`cs-label${startPoint ? '' : ' cs-placeholder'}`}>
+                {startPoint?.shortLabel ?? 'My location'}
+              </span>
+            </div>
+            <span className="cs-arrow">›</span>
+            <div className="cs-endpoint cs-destination">
+              <span className={`cs-label${endPoint ? '' : ' cs-placeholder'}`}>
+                {endPoint?.shortLabel ?? 'Where to?'}
+              </span>
+            </div>
+          </div>
+          {route && (
+            <div className="cs-route-summary">
+              {formatDistance(route.summary.distance)} · {formatDuration(route.summary.duration)}
+            </div>
+          )}
+        </div>
+
         <div className="panel-content">
           <div className="panel-header">
             <h1 className="app-title">Bike Route Planner</h1>
@@ -384,13 +438,24 @@ export default function App() {
               label="Start"
               value={startPoint}
               onSelect={handleStartSelect}
+              onClear={() => { setStartPoint(null); setRoute(null) }}
               placeholder="Search start location…"
               quickOptions={startQuickOptions}
             />
+            <div className="swap-btn-row">
+              <button
+                className="swap-btn"
+                aria-label="Swap start and end"
+                onClick={handleSwap}
+              >
+                ⇅
+              </button>
+            </div>
             <SearchBar
               label="End"
               value={endPoint}
               onSelect={handleEndSelect}
+              onClear={() => { setEndPoint(null); setRoute(null) }}
               placeholder="Search destination…"
               quickOptions={endQuickOptions}
               biasPoint={startPoint ?? undefined}
