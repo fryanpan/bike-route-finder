@@ -201,6 +201,12 @@ function OverlayController({ enabled, profileKey, preferredItemNames, showOtherP
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(loadVisibleTiles, 400)
     },
+    resize() {
+      // Fired when invalidateSize() is called (e.g. after CSS layout settles).
+      // Re-trigger tile loading so the correct viewport bounds are used.
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(loadVisibleTiles, 200)
+    },
   })
 
   useEffect(() => {
@@ -210,6 +216,12 @@ function OverlayController({ enabled, profileKey, preferredItemNames, showOtherP
       generationRef.current++
       loadingTilesRef.current = new Set()
       loadedTilesRef.current = new Set()
+
+      // Force Leaflet to recalculate the container size before querying bounds.
+      // On initial load the map may be initialized before CSS layout is applied,
+      // causing getBounds() to return a zero or undersized viewport — which means
+      // loadVisibleTiles() fetches the wrong (or no) tiles until the user pans/zooms.
+      map.invalidateSize()
 
       // Pre-populate tileData from the in-memory Overpass cache for instant display.
       const bounds = map.getBounds()
