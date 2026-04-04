@@ -48,6 +48,21 @@ And from prior sessions (BC-242), I had already *celebrated* consolidating 6→4
 
 ---
 
+## 2026-04-04 — Fix non-Berlin routing (geocoding Berlin hardcoding)
+
+**What worked:**
+- Grepping for `countrycodes`, `viewbox`, `bounded`, and `city=Berlin` immediately surfaced all four hardcoded constraints in one file. Targeted grep approach was fast.
+- The fix itself was minimal (3 lines removed, 1 type annotation added) — reading the code before acting made the scope clear.
+- `bunx tsc --noEmit` works correctly when run *after* `bun install` (dependencies resolved). CI caught the `Record<string, string>` type issue that a local `bun test` wouldn't catch.
+
+**What didn't:**
+- Subagent added `biasParams` without a `Record<string, string>` type annotation, causing URLSearchParams constructor type errors in CI. TypeScript infers `{ viewbox: string; bounded: string } | {}` which isn't compatible. Always explicitly type objects that spread into string-keyed maps.
+- Pre-existing `bunx tsc` quirk: running without `bun install` first downloads an unrelated npm package named `tsc`. Lesson from BC-249 applied correctly this time.
+
+**Action:** When spreading conditional params into URLSearchParams, always type the variable as `Record<string, string>` explicitly.
+
+---
+
 ## 2026-04-02 — BC-249 Tile-based map caching
 
 **What worked:** Splitting viewport fetch into tile-based parallel requests with per-tile caching was straightforward. The key insight: use refs (`loadedTilesRef`, `loadingTilesRef`, `generationRef`) so the `loadVisibleTiles` callback has no stale-closure dependency on component state — only on stable values (`enabled`, `profileKey`, `map`, `onStatusChange`).
