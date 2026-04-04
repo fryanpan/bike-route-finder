@@ -48,11 +48,12 @@ function buildTooltipHtml(itemName: string | null, tags: Record<string, string>)
 //
 // Uses an imperative Leaflet layer group with canvas renderer to bypass React
 // reconciliation for individual polylines — canvas is 5-10x faster than SVG on mobile.
-function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths }: {
+function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths, hasRoute }: {
   ways: OsmWay[]
   profileKey: string
   preferredItemNames: Set<string>
   showOtherPaths: boolean
+  hasRoute: boolean
 }) {
   const map = useMap()
   const lgRef = useRef<L.LayerGroup | null>(null)
@@ -75,6 +76,9 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths 
 
     lg.clearLayers()
 
+    // Reduce overlay line weight when a route is shown so the route stands out.
+    const overlayWeight = hasRoute ? 3 : 5
+
     for (const way of ways) {
       const itemName = classifyOsmTagsToItem(way.tags, profileKey)
       if (!showOtherPaths && (itemName === null || !preferredItemNames.has(itemName))) continue
@@ -83,7 +87,7 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths 
 
       const polyline = L.polyline(way.coordinates, {
         color,
-        weight: 5,
+        weight: overlayWeight,
         opacity: 0.7,
         renderer: canvasRenderer,
       })
@@ -96,7 +100,7 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths 
 
       polyline.addTo(lg)
     }
-  }, [ways, profileKey, preferredItemNames, showOtherPaths])
+  }, [ways, profileKey, preferredItemNames, showOtherPaths, hasRoute])
 
   return null
 }
@@ -106,10 +110,11 @@ interface ControllerProps {
   profileKey: string
   preferredItemNames: Set<string>
   showOtherPaths: boolean
+  hasRoute: boolean
   onStatusChange: (status: string) => void
 }
 
-function OverlayController({ enabled, profileKey, preferredItemNames, showOtherPaths, onStatusChange }: ControllerProps) {
+function OverlayController({ enabled, profileKey, preferredItemNames, showOtherPaths, hasRoute, onStatusChange }: ControllerProps) {
   const map = useMap()
 
   // Per-tile way data. Tiles accumulate as the user pans — previously loaded
@@ -261,7 +266,7 @@ function OverlayController({ enabled, profileKey, preferredItemNames, showOtherP
   }, [tileData])
 
   if (!enabled || allWays.length === 0) return null
-  return <OverlayRenderer ways={allWays} profileKey={profileKey} preferredItemNames={preferredItemNames} showOtherPaths={showOtherPaths} />
+  return <OverlayRenderer ways={allWays} profileKey={profileKey} preferredItemNames={preferredItemNames} showOtherPaths={showOtherPaths} hasRoute={hasRoute} />
 }
 
 interface Props {
@@ -269,9 +274,10 @@ interface Props {
   profileKey: string
   preferredItemNames: Set<string>
   showOtherPaths: boolean
+  hasRoute: boolean
   onStatusChange: (status: string) => void
 }
 
-export default function BikeMapOverlay({ enabled, profileKey, preferredItemNames, showOtherPaths, onStatusChange }: Props) {
-  return <OverlayController enabled={enabled} profileKey={profileKey} preferredItemNames={preferredItemNames} showOtherPaths={showOtherPaths} onStatusChange={onStatusChange} />
+export default function BikeMapOverlay({ enabled, profileKey, preferredItemNames, showOtherPaths, hasRoute, onStatusChange }: Props) {
+  return <OverlayController enabled={enabled} profileKey={profileKey} preferredItemNames={preferredItemNames} showOtherPaths={showOtherPaths} hasRoute={hasRoute} onStatusChange={onStatusChange} />
 }

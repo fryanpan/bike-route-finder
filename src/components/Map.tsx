@@ -1,7 +1,7 @@
 import L from 'leaflet'
 import { useEffect, useRef } from 'react'
 import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
+import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem, filterVisibleSegments } from '../utils/classify'
 import BikeMapOverlay from './BikeMapOverlay'
 import type { Route, RouteSegment } from '../utils/types'
 
@@ -90,24 +90,21 @@ function midpoint(coords: [number, number][]): [number, number] {
 }
 
 // Route segments are colored green (preferred) or orange (other).
-// Other segments are hidden when showOtherPaths is false.
+// ALL segments are always shown — preferred in green, non-preferred in orange.
+// The showOtherPaths toggle controls the overlay, not the route itself.
 function RouteDisplay({
   route,
   profileKey,
   preferredItemNames,
-  showOtherPaths,
 }: {
   route: Route | null
   profileKey: string
   preferredItemNames: Set<string>
-  showOtherPaths: boolean
 }) {
   if (!route) return null
 
   if (route.segments?.length) {
-    const visible = route.segments.filter(
-      (seg) => (seg.itemName !== null && preferredItemNames.has(seg.itemName)) || showOtherPaths
-    )
+    const visible = filterVisibleSegments(route.segments)
     return (
       <>
         {visible.map((seg: RouteSegment, i: number) => {
@@ -119,7 +116,7 @@ function RouteDisplay({
               key={i}
               positions={seg.coordinates}
               color={color}
-              weight={12}
+              weight={16}
               opacity={0.95}
             >
               {legendItem && (
@@ -151,7 +148,7 @@ function RouteDisplay({
     <Polyline
       positions={route.coordinates}
       color="#2563eb"
-      weight={12}
+      weight={16}
       opacity={0.9}
     />
   )
@@ -210,6 +207,7 @@ export default function Map({
         profileKey={profileKey}
         preferredItemNames={preferredItemNames}
         showOtherPaths={showOtherPaths}
+        hasRoute={!!route}
         onStatusChange={onOverlayStatusChange}
       />
 
@@ -217,7 +215,6 @@ export default function Map({
         route={route}
         profileKey={profileKey}
         preferredItemNames={preferredItemNames}
-        showOtherPaths={showOtherPaths}
       />
 
       {startPoint && (
