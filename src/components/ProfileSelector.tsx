@@ -1,7 +1,7 @@
 import React from 'react'
 import type { ProfileMap } from '../utils/types'
 
-// --- Mode-specific SVG icons ---
+// --- Travel-mode-specific SVG icons ---
 
 function ToddlerModeIcon() {
   // Adult bike (left) + child bike (right, smaller) — 8px gap between bikes
@@ -105,17 +105,17 @@ interface Props {
   selected: string
   onSelect: (key: string) => void
   onEdit: (key: string) => void
-  isCustomMode: boolean
+  isCustomTravelMode: boolean
 }
 
-export default function ProfileSelector({ profiles, selected, onSelect, onEdit, isCustomMode }: Props) {
+export default function ProfileSelector({ profiles, selected, onSelect, onEdit, isCustomTravelMode }: Props) {
   return (
     <div className="profile-selector">
       <div className="profile-chips">
         {Object.entries(profiles).map(([key, profile]) => (
           <button
             key={key}
-            className={`profile-chip${selected === key && !isCustomMode ? ' selected' : ''}`}
+            className={`profile-chip${selected === key && !isCustomTravelMode ? ' selected' : ''}`}
             onClick={() => onSelect(key)}
             title={`${profile.label}\n${profile.description}`}
           >
@@ -126,10 +126,10 @@ export default function ProfileSelector({ profiles, selected, onSelect, onEdit, 
             </span>
           </button>
         ))}
-        {isCustomMode && (
+        {isCustomTravelMode && (
           <button
             className="profile-chip profile-chip-custom selected"
-            title="Custom mode — you have edited the preferred path types"
+            title="Custom travel mode — you have edited the preferred path types"
             onClick={() => onSelect(selected)}
           >
             <span className="profile-chip-icon">

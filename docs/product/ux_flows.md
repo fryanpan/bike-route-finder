@@ -20,7 +20,7 @@ Key user interface flows and their intended behaviour.
 ### Key interactions
 1. **Pan and zoom** to see nearby infrastructure tiles as they load
 2. **Toggle "Bike Layer"** (bottom-left) to compare with base map
-3. **Profile switch** to see how infrastructure quality changes by riding mode
+3. **Profile switch** to see how infrastructure quality changes by travel mode
 4. **Legend adjustments** — move a path type from Preferred to Other (or vice versa) to control which ways appear green on the map
 5. **"Show other paths" toggle** in the legend header — makes orange/red paths visible without moving them to preferred
 
@@ -31,7 +31,7 @@ The overlay is the core value here. It lets the user answer "is there a Fahrrads
 
 ## Flow 2: Get a directed route from A to B
 
-**Context**: User knows their destination and wants the app to find the safest, most comfortable route given their current riding mode.
+**Context**: User knows their destination and wants the app to find the safest, most comfortable route given their current travel mode.
 
 ### Entry points
 - User types a destination in the "End" search bar
@@ -63,7 +63,7 @@ Legend adjustments currently affect **display only** — moving a path type betw
 
 | State | Where stored | Scope |
 |-------|-------------|-------|
-| Active profile | URL `?mode=` + localStorage | Persists across sessions |
+| Active travel mode | URL `?travelMode=` + localStorage | Persists across sessions |
 | Custom preferred items | URL `?preferred=` + localStorage | Persists across sessions |
 | Show other paths | URL `?showOther=1` | Persists in URL/session |
 | Route start/end | In-memory (React state) | Current session only |

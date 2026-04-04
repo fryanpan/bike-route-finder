@@ -43,7 +43,7 @@ function buildTooltipHtml(itemName: string | null, tags: Record<string, string>)
 }
 
 // itemName is computed from raw OSM tags at render time using the current profileKey.
-// This keeps the Overpass tile cache profile-independent: mode switching rerenders
+// This keeps the Overpass tile cache profile-independent: travel mode switching rerenders
 // instantly without any re-fetch.
 //
 // Uses an imperative Leaflet layer group with canvas renderer to bypass React
@@ -217,7 +217,7 @@ function OverlayController({ enabled, profileKey, preferredItemNames, showOtherP
   useEffect(() => {
     if (enabled) {
       // Reset tile tracking only when the overlay is enabled (not on profile change).
-      // Tile data is profile-independent — mode switching just rerenders with new itemNames.
+      // Tile data is profile-independent — travel mode switching just rerenders with new itemNames.
       generationRef.current++
       loadingTilesRef.current = new Set()
       loadedTilesRef.current = new Set()

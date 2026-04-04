@@ -169,7 +169,7 @@ The following must always be consistent. Before declaring any feature or bug fix
 
 ### URL State Encoding
 **All map layout state must be encoded in the URL.** This includes:
-- Active profile/mode (`mode=`)
+- Active travel mode (`travelMode=`)
 - Custom preferred item set (`preferred=`)
 - Visibility toggles (e.g. `showOther=1`)
 

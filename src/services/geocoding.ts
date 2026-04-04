@@ -12,6 +12,11 @@ interface NominatimResult {
   address?: {
     house_number?: string
     road?: string
+    suburb?: string
+    city?: string
+    town?: string
+    village?: string
+    city_district?: string
   }
 }
 

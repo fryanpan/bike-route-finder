@@ -5,10 +5,12 @@ const ProfileEditor = lazy(() => import('./components/ProfileEditor'))
 import Legend from './components/Legend'
 import SearchBar from './components/SearchBar'
 import type { QuickOption } from './components/SearchBar'
+import PlaceCard from './components/PlaceCard'
+import RoutingHeader from './components/RoutingHeader'
 import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import FeedbackWidget from './components/FeedbackWidget'
-import { getRoute, getRouteSegments, DEFAULT_PROFILES, formatDistance, formatDuration } from './services/routing'
+import { getRoute, getRouteSegments, DEFAULT_PROFILES } from './services/routing'
 import { reverseGeocode } from './services/geocoding'
 import {
   getDefaultPreferredItems,
@@ -16,6 +18,8 @@ import {
 } from './utils/classify'
 import type { Place, Route, ProfileMap, RiderProfile } from './utils/types'
 import { Sentry } from './sentry'
+
+type UiState = 'search' | 'place-detail' | 'routing'
 
 const HOME_PLACE: Place = {
   lat: 52.5016,
@@ -33,7 +37,7 @@ const SCHOOL_PLACE: Place = {
 
 const STORAGE_KEY = 'bike-route-profiles'
 const CUSTOM_PREFERRED_KEY = 'bike-route-custom-preferred'
-const CUSTOM_MODE_KEY = 'bike-route-mode'
+const TRAVEL_MODE_KEY = 'bike-route-travel-mode'
 
 function loadProfiles(): ProfileMap {
   try {
@@ -61,7 +65,7 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 /** Read initial profile + preferred items from URL params, then localStorage, then defaults. */
 function getInitialState(): { profileKey: string; preferredItems: Set<string>; showOtherPaths: boolean } {
   const params = new URLSearchParams(window.location.search)
-  const modeParam = params.get('mode')
+  const modeParam = params.get('travelMode')
   const preferredParam = params.get('preferred')
   const showOtherParam = params.get('showOther')
 
@@ -74,14 +78,14 @@ function getInitialState(): { profileKey: string; preferredItems: Set<string>; s
     return { profileKey: profile, preferredItems: items, showOtherPaths }
   }
 
-  // URL mode param (no custom preferred)
+  // URL travel mode param (no custom preferred)
   if (modeParam && DEFAULT_PROFILES[modeParam]) {
     return { profileKey: modeParam, preferredItems: getDefaultPreferredItems(modeParam), showOtherPaths }
   }
 
   // Fall back to localStorage
   try {
-    const savedMode = localStorage.getItem(CUSTOM_MODE_KEY)
+    const savedMode = localStorage.getItem(TRAVEL_MODE_KEY)
     const savedCustom = localStorage.getItem(CUSTOM_PREFERRED_KEY)
     if (savedCustom) {
       const items = new Set(JSON.parse(savedCustom) as string[])
@@ -96,6 +100,26 @@ function getInitialState(): { profileKey: string; preferredItems: Set<string>; s
   return { profileKey: 'toddler', preferredItems: getDefaultPreferredItems('toddler'), showOtherPaths }
 }
 
+/** Resolve the user's current location as a Place (async, returns null on failure). */
+async function resolveCurrentLocation(): Promise<Place | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        const geocoded = await reverseGeocode(lat, lng)
+        resolve({
+          lat,
+          lng,
+          label: geocoded?.label ?? 'Current Location',
+          shortLabel: geocoded?.shortLabel ?? 'Current Location',
+        })
+      },
+      () => resolve(null),
+    )
+  })
+}
+
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileMap>(loadProfiles)
 
@@ -108,6 +132,10 @@ export default function App() {
 
   const [editingProfile, setEditingProfile] = useState<string | null>(null)
 
+  // --- UI state machine ---
+  const [uiState, setUiState] = useState<UiState>('search')
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
+
   const [startPoint, setStartPoint] = useState<Place | null>(null)
   const [endPoint, setEndPoint]     = useState<Place | null>(null)
   const [waypoints]                 = useState<Array<{ lat: number; lng: number }>>([])
@@ -118,19 +146,17 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
 
-  const [panelOpen, setPanelOpen] = useState(true)
-
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [overlayStatus, setOverlayStatus]   = useState('idle')
 
-  // Derived: is the user in custom mode (preferred differs from profile defaults)?
-  const isCustomMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
+  // Derived: has the user customized their travel mode's preferred path types?
+  const isCustomTravelMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
 
   // Sync URL params and localStorage on every state change
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    params.set('mode', selectedProfile)
-    if (isCustomMode) {
+    params.set('travelMode', selectedProfile)
+    if (isCustomTravelMode) {
       params.set('preferred', [...preferredItemNames].join(','))
     } else {
       params.delete('preferred')
@@ -143,21 +169,20 @@ export default function App() {
     window.history.replaceState({}, '', `?${params.toString()}`)
 
     try {
-      localStorage.setItem(CUSTOM_MODE_KEY, selectedProfile)
-      if (isCustomMode) {
+      localStorage.setItem(TRAVEL_MODE_KEY, selectedProfile)
+      if (isCustomTravelMode) {
         localStorage.setItem(CUSTOM_PREFERRED_KEY, JSON.stringify([...preferredItemNames]))
       } else {
         localStorage.removeItem(CUSTOM_PREFERRED_KEY)
       }
     } catch { /* ignore */ }
-  }, [selectedProfile, preferredItemNames, isCustomMode, showOtherPaths])
+  }, [selectedProfile, preferredItemNames, isCustomTravelMode, showOtherPaths])
 
   useEffect(() => {
     saveProfiles(profiles)
   }, [profiles])
 
   // Re-route when preferred items change so costing reflects the new preferences.
-  // We skip this on initial mount (the route is computed explicitly when start/end are set).
   const preferencesMountedRef = useRef(false)
   useEffect(() => {
     if (!preferencesMountedRef.current) { preferencesMountedRef.current = true; return }
@@ -193,7 +218,6 @@ export default function App() {
       const costingOptions = getCostingFromPreferences(preferredItemNames, profileKey, profile)
       const result = await getRoute(start, end, { ...profile, costingOptions }, wps)
       setRoute(result)
-      setPanelOpen(false)
 
       // Enrich with profile-aware colored segments in the background
       getRouteSegments(result.coordinates, profileKey).then((segments) => {
@@ -210,45 +234,32 @@ export default function App() {
     }
   }
 
+  // --- Transition: search → place-detail ---
+  function handlePlaceSelect(place: Place) {
+    setSelectedPlace(place)
+    setUiState('place-detail')
+  }
+
+  // --- Start routing to a destination from current location ---
+  async function startRoutingTo(destination: Place) {
+    setEndPoint(destination)
+    setUiState('routing')
+
+    const loc = await resolveCurrentLocation()
+    if (loc) {
+      setStartPoint(loc)
+      void computeRoute(loc, destination, selectedProfile, waypoints)
+    }
+  }
+
+  function handleDirectionsFromPlace() {
+    if (selectedPlace) startRoutingTo(selectedPlace)
+  }
+
+  // --- Routing mode: start/end selection ---
   function handleStartSelect(place: Place) {
     setStartPoint(place)
     if (endPoint) computeRoute(place, endPoint, selectedProfile, waypoints)
-  }
-
-  function handleSelectCurrentLocation() {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        const geocoded = await reverseGeocode(lat, lng)
-        const place: Place = {
-          lat,
-          lng,
-          label: geocoded?.label ?? 'Current Location',
-          shortLabel: geocoded?.shortLabel ?? 'Current Location',
-        }
-        handleStartSelect(place)
-      },
-      () => { /* permission denied — ignore */ },
-    )
-  }
-
-  function handleSelectCurrentLocationAsEnd() {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        const geocoded = await reverseGeocode(lat, lng)
-        const place: Place = {
-          lat,
-          lng,
-          label: geocoded?.label ?? 'Current Location',
-          shortLabel: geocoded?.shortLabel ?? 'Current Location',
-        }
-        handleEndSelect(place)
-      },
-      () => { /* permission denied — ignore */ },
-    )
   }
 
   function handleEndSelect(place: Place) {
@@ -256,9 +267,17 @@ export default function App() {
     if (startPoint) computeRoute(startPoint, place, selectedProfile, waypoints)
   }
 
+  function handleSwap() {
+    const newStart = endPoint
+    const newEnd = startPoint
+    setStartPoint(newStart)
+    setEndPoint(newEnd)
+    if (newStart && newEnd) void computeRoute(newStart, newEnd, selectedProfile, waypoints)
+  }
+
   function handleProfileChange(key: string) {
     setSelectedProfile(key)
-    // Reset preferred items to this profile's defaults (clears custom mode)
+    // Reset preferred items to this travel mode's defaults
     setPreferredItemNames(getDefaultPreferredItems(key))
     if (startPoint && endPoint) computeRoute(startPoint, endPoint, key, waypoints)
   }
@@ -268,19 +287,14 @@ export default function App() {
     if (startPoint && endPoint) computeRoute(startPoint, endPoint, selectedProfile, newWps)
   }
 
-  function clearAll() {
+  // --- Back to search ---
+  function backToSearch() {
     setRoute(null)
     setStartPoint(null)
     setEndPoint(null)
+    setSelectedPlace(null)
     setError(null)
-  }
-
-  function handleSwap() {
-    const newStart = endPoint
-    const newEnd = startPoint
-    setStartPoint(newStart)
-    setEndPoint(newEnd)
-    if (newStart && newEnd) void computeRoute(newStart, newEnd, selectedProfile, waypoints)
+    setUiState('search')
   }
 
   function handleProfileSave(updatedProfile: RiderProfile) {
@@ -298,11 +312,29 @@ export default function App() {
     overlayStatus === 'error'   ? '⚠️ Could not load bike map — pan or zoom to retry' :
     null
 
+  // Quick options for search (initial state): shortcuts route directly
+  const searchQuickOptions: QuickOption[] = [
+    {
+      label: 'Home',
+      icon: '🏠',
+      onSelect: () => startRoutingTo(HOME_PLACE),
+    },
+    {
+      label: 'School',
+      icon: '🏫',
+      onSelect: () => startRoutingTo(SCHOOL_PLACE),
+    },
+  ]
+
+  // Quick options for routing inputs: fill the field
   const startQuickOptions: QuickOption[] = [
     {
       label: 'Current Location',
       icon: '📍',
-      onSelect: handleSelectCurrentLocation,
+      onSelect: async () => {
+        const loc = await resolveCurrentLocation()
+        if (loc) handleStartSelect(loc)
+      },
       isLocation: true,
     },
     {
@@ -321,7 +353,10 @@ export default function App() {
     {
       label: 'Current Location',
       icon: '📍',
-      onSelect: handleSelectCurrentLocationAsEnd,
+      onSelect: async () => {
+        const loc = await resolveCurrentLocation()
+        if (loc) handleEndSelect(loc)
+      },
       isLocation: true,
     },
     {
@@ -336,13 +371,16 @@ export default function App() {
     },
   ]
 
+  // The place to show on the map as a single marker (place-detail state)
+  const flyToPlace = uiState === 'place-detail' ? selectedPlace : null
+
   return (
-    <div className="app">
+    <div className={`app ui-${uiState}`}>
       <div className="map-wrap">
         <Suspense fallback={<div className="map-loading" />}>
           <Map
-            startPoint={startPoint}
-            endPoint={endPoint}
+            startPoint={uiState === 'routing' ? startPoint : null}
+            endPoint={uiState === 'routing' ? endPoint : null}
             route={route}
             waypoints={waypoints}
             onRemoveWaypoint={handleRemoveWaypoint}
@@ -352,18 +390,22 @@ export default function App() {
             currentLocation={currentLocation}
             preferredItemNames={preferredItemNames}
             showOtherPaths={showOtherPaths}
+            flyToPlace={flyToPlace}
           />
         </Suspense>
-        <div className="map-mode-overlay">
+
+        {/* Travel mode selector */}
+        <div className="map-travel-mode">
           <ProfileSelector
             profiles={profiles}
             selected={selectedProfile}
             onSelect={handleProfileChange}
             onEdit={(key) => setEditingProfile(key)}
-            isCustomMode={isCustomMode}
+            isCustomTravelMode={isCustomTravelMode}
           />
         </div>
-        {/* Top-right controls: feedback button + legend, laid out as a flex row */}
+
+        {/* Top-right controls */}
         <div className="map-top-right">
           <FeedbackWidget />
           <Legend
@@ -377,7 +419,8 @@ export default function App() {
             onToggleOtherPaths={() => setShowOtherPaths((v) => !v)}
           />
         </div>
-        {/* On-map bike layer toggle */}
+
+        {/* Bike layer toggle */}
         <div className="map-bike-layer-toggle">
           <button
             className={`bike-layer-btn${overlayEnabled ? ' active' : ''}`}
@@ -388,97 +431,71 @@ export default function App() {
           </button>
           {overlayStatusMsg && <p className="bike-layer-status">{overlayStatusMsg}</p>}
         </div>
-      </div>
 
-      <div className={`panel${panelOpen ? ' panel-open' : ' panel-closed'}`}>
-        <div
-          className="panel-handle"
-          role="button"
-          aria-label="Toggle panel"
-          onClick={() => setPanelOpen((o) => !o)}
-        >
-          <div className="handle-bar" />
-        </div>
+        {/* --- Floating UI card (changes per uiState) --- */}
 
-        {/* Collapsed search strip — visible only when panel is closed */}
-        <div
-          className="collapsed-strip"
-          role="button"
-          aria-label="Open search"
-          onClick={() => setPanelOpen(true)}
-        >
-          <div className="cs-row">
-            <div className="cs-endpoint">
-              <span className="cs-icon">📍</span>
-              <span className={`cs-label${startPoint ? '' : ' cs-placeholder'}`}>
-                {startPoint?.shortLabel ?? 'My location'}
-              </span>
-            </div>
-            <span className="cs-arrow">›</span>
-            <div className="cs-endpoint cs-destination">
-              <span className={`cs-label${endPoint ? '' : ' cs-placeholder'}`}>
-                {endPoint?.shortLabel ?? 'Where to?'}
-              </span>
-            </div>
-          </div>
-          {route && (
-            <div className="cs-route-summary">
-              {formatDistance(route.summary.distance)} · {formatDuration(route.summary.duration)}
-            </div>
-          )}
-        </div>
-
-        <div className="panel-content">
-          <div className="panel-header">
-            <h1 className="app-title">Bike Route Planner</h1>
-          </div>
-
-          <div className="search-section">
+        {/* SEARCH state: compact search bar */}
+        {uiState === 'search' && (
+          <div className="floating-card floating-search">
             <SearchBar
-              label="Start"
-              value={startPoint}
-              onSelect={handleStartSelect}
-              onClear={() => { setStartPoint(null); setRoute(null) }}
-              placeholder="Search start location…"
-              quickOptions={startQuickOptions}
-            />
-            <div className="swap-btn-row">
-              <button
-                className="swap-btn"
-                aria-label="Swap start and end"
-                onClick={handleSwap}
-              >
-                ⇅
-              </button>
-            </div>
-            <SearchBar
-              label="End"
-              value={endPoint}
-              onSelect={handleEndSelect}
-              onClear={() => { setEndPoint(null); setRoute(null) }}
-              placeholder="Search destination…"
-              quickOptions={endQuickOptions}
-              biasPoint={startPoint ?? undefined}
+              label=""
+              value={null}
+              onSelect={handlePlaceSelect}
+              placeholder="Search a place…"
+              quickOptions={searchQuickOptions}
             />
           </div>
+        )}
 
-          {isLoading && (
-            <div className="loading">
-              <div className="spinner" />
-              <span>Calculating route…</span>
-            </div>
-          )}
-
-          {error && <div className="error-msg">⚠️ {error}</div>}
-
-          {route && !isLoading && (
-            <DirectionsPanel
-              route={route}
-              onClose={clearAll}
-              preferredItemNames={preferredItemNames}
+        {/* PLACE DETAIL state: bottom card with place info */}
+        {uiState === 'place-detail' && selectedPlace && (
+          <div className="floating-card floating-place-detail">
+            <PlaceCard
+              place={selectedPlace}
+              onDirections={handleDirectionsFromPlace}
+              onBack={backToSearch}
             />
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* ROUTING state: top header + bottom summary */}
+        {uiState === 'routing' && (
+          <>
+            <div className="floating-card floating-routing-header">
+              <button className="routing-back-btn" onClick={backToSearch} aria-label="Back to search">←</button>
+              <RoutingHeader
+                startPoint={startPoint}
+                endPoint={endPoint}
+                onStartSelect={handleStartSelect}
+                onEndSelect={handleEndSelect}
+                onStartClear={() => { setStartPoint(null); setRoute(null) }}
+                onEndClear={() => { setEndPoint(null); setRoute(null) }}
+                onSwap={handleSwap}
+                startQuickOptions={startQuickOptions}
+                endQuickOptions={endQuickOptions}
+              />
+            </div>
+
+            {isLoading && (
+              <div className="floating-card floating-loading">
+                <div className="spinner" />
+                <span>Calculating route…</span>
+              </div>
+            )}
+
+            {error && <div className="floating-card floating-error">⚠️ {error}</div>}
+
+            {route && !isLoading && (
+              <div className="floating-card floating-route-summary">
+                <DirectionsPanel
+                  route={route}
+                  onClose={backToSearch}
+                  preferredItemNames={preferredItemNames}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {editingProfile && (

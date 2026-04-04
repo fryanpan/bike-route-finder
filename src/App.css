@@ -13,16 +13,12 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── App shell ─────────────────────────────────────────── */
 /*
- * Mobile-first:
- *   Map fills the entire viewport. Panel is a bottom sheet.
- * Desktop (≥ 768px):
- *   Panel is a fixed left sidebar; map fills the rest.
+ * Map fills the entire viewport.
+ * UI floats on top as cards that change per uiState.
  */
 .app {
   position: relative;
   height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 /* ── Map ───────────────────────────────────────────────── */
@@ -33,126 +29,199 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .map-wrap {
-  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
   position: relative;
-  padding-bottom: 130px; /* space for collapsed panel handle + search strip (incl. route summary) */
 }
 .map-wrap > .leaflet-container {
   width: 100%;
   height: 100%;
 }
 
-/* ── Panel (bottom sheet on mobile) ───────────────────── */
-.panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #fff;
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -2px 20px rgba(0,0,0,.12);
+/* ── Floating cards ───────────────────────────────────── */
+.floating-card {
+  position: absolute;
   z-index: 500;
-  display: flex;
-  flex-direction: column;
-  max-height: 82vh;
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.panel-open  { transform: translateY(0); }
-.panel-closed { transform: translateY(calc(100% - 130px)); }
-
-.panel-handle {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 28px;
-  flex-shrink: 0;
-  cursor: pointer;
-  padding-top: 4px;
-}
-.handle-bar {
-  width: 36px;
-  height: 4px;
-  background: #d1d5db;
-  border-radius: 2px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.15);
 }
 
-.panel-content {
+/* Search bar (top, compact) */
+.floating-search {
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  padding: 6px 10px;
+}
+.floating-search .search-label { display: none; }
+
+/* Place detail (bottom card) */
+.floating-place-detail {
+  bottom: 24px;
+  left: 12px;
+  right: 12px;
+  padding: 0;
+}
+
+/* Routing header (top) */
+.floating-routing-header {
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Route summary (bottom) */
+.floating-route-summary {
+  bottom: 24px;
+  left: 12px;
+  right: 12px;
+  max-height: 50vh;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  flex: 1;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ── Panel header ──────────────────────────────────────── */
-.panel-header {
-  padding: 4px 16px 10px;
-  border-bottom: 1px solid #f3f4f6;
-}
-.app-title   { font-size: 17px; font-weight: 700; }
-.app-subtitle { font-size: 12px; color: #6b7280; margin-top: 1px; }
-
-
-/* ── Collapsed search strip ────────────────────────────── */
-/* Only visible when panel is closed */
-.panel-open .collapsed-strip { display: none; }
-.panel-closed .collapsed-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 12px 10px;
-  cursor: pointer;
-}
-.cs-row {
+/* Loading/error cards */
+.floating-loading {
+  bottom: 24px;
+  left: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  padding: 14px 16px;
+  color: #6b7280;
+  font-size: 14px;
 }
-.cs-endpoint {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 10px;
-  background: #f9fafb;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 10px;
-  min-width: 0;
-  transition: border-color .15s, background .15s;
+.floating-error {
+  bottom: 24px;
+  left: 12px;
+  right: 12px;
+  padding: 12px 16px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  border-radius: 12px;
 }
-.panel-closed .collapsed-strip:hover .cs-endpoint {
-  border-color: #93c5fd;
-  background: #eff6ff;
+
+/* ── Place card ───────────────────────────────────────── */
+.place-card {
+  padding: 14px 16px;
 }
-.cs-icon { font-size: 14px; flex-shrink: 0; }
-.cs-label {
+.place-card-back {
+  background: none;
+  border: none;
+  color: #2563eb;
   font-size: 13px;
   font-weight: 500;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.place-card-back:hover { text-decoration: underline; }
+.place-card-info { margin-bottom: 12px; }
+.place-card-name {
+  font-size: 17px;
+  font-weight: 700;
   color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin: 0;
 }
-.cs-label.cs-placeholder { color: #9ca3af; font-weight: 400; }
-.cs-destination { flex: 1.4; }
-.cs-arrow {
-  font-size: 18px;
-  color: #9ca3af;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.cs-route-summary {
-  font-size: 12px;
+.place-card-detail {
+  font-size: 13px;
   color: #6b7280;
-  font-weight: 500;
-  padding: 0 2px;
-  text-align: center;
+  margin-top: 2px;
+}
+.place-card-directions-btn {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background .15s;
+}
+.place-card-directions-btn:hover { background: #1d4ed8; }
+
+/* ── Routing header ───────────────────────────────────── */
+.routing-back-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #6b7280;
+  padding: 6px 4px;
+  line-height: 1;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.routing-back-btn:hover { color: #111827; }
+.routing-header { flex: 1; min-width: 0; }
+.routing-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.routing-inputs .search-label {
+  display: block;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+.routing-inputs .search-input {
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.routing-swap-btn {
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 16px;
+  padding: 4px 8px;
+  line-height: 1;
+  flex-shrink: 0;
+  align-self: center;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.routing-swap-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+
+/* Desktop: floating cards are positioned as a panel on the left */
+@media (min-width: 768px) {
+  .floating-search {
+    right: auto;
+    width: 320px;
+  }
+  .floating-place-detail {
+    top: 12px;
+    bottom: auto;
+    right: auto;
+    width: 320px;
+  }
+  .floating-routing-header {
+    right: auto;
+    width: 320px;
+  }
+  .floating-route-summary {
+    top: auto;
+    right: auto;
+    width: 320px;
+    max-height: 60vh;
+  }
+  .floating-loading,
+  .floating-error {
+    right: auto;
+    width: 320px;
+  }
 }
 
 /* ── On-map bike layer toggle ──────────────────────────── */
 .map-bike-layer-toggle {
   position: absolute;
-  bottom: 144px; /* above panel handle + search strip on mobile */
+  bottom: 24px;
   left: 10px;
   z-index: 450;
 }
@@ -183,24 +252,11 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 4px;
   box-shadow: 0 1px 4px rgba(0,0,0,.1);
 }
+/* Push bike layer toggle above floating bottom cards */
+.ui-place-detail .map-bike-layer-toggle { bottom: 160px; }
+.ui-routing .map-bike-layer-toggle { bottom: 220px; }
 @media (min-width: 768px) {
-  .map-bike-layer-toggle {
-    bottom: 24px;
-  }
-}
-
-/* ── Search section ────────────────────────────────────── */
-.search-section {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.click-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  text-align: center;
+  .ui-routing .map-bike-layer-toggle { bottom: 24px; }
 }
 
 /* SearchBar */
@@ -248,24 +304,6 @@ button { font-family: inherit; cursor: pointer; }
 }
 .search-clear-btn:hover { color: #374151; background: #f3f4f6; }
 
-/* Swap button */
-.swap-btn-row {
-  display: flex;
-  justify-content: flex-end;
-  margin: -2px 0;
-}
-.swap-btn {
-  background: #f9fafb;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
-  color: #6b7280;
-  font-size: 16px;
-  padding: 4px 10px;
-  line-height: 1;
-  transition: border-color .15s, color .15s, background .15s;
-}
-.swap-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
-
 .suggestions {
   position: absolute;
   top: 100%;
@@ -291,8 +329,8 @@ button { font-family: inherit; cursor: pointer; }
 .suggestion-name   { display: block; font-weight: 500; font-size: 14px; }
 .suggestion-detail { display: block; font-size: 12px; color: #9ca3af; margin-top: 1px; }
 
-/* ── Mode selector map overlay ─────────────────────────── */
-.map-mode-overlay {
+/* ── Travel mode selector map overlay ─────────────────── */
+.map-travel-mode {
   position: absolute;
   top: 12px;
   left: 50%;
@@ -300,7 +338,7 @@ button { font-family: inherit; cursor: pointer; }
   z-index: 450;
   pointer-events: none;
 }
-.map-mode-overlay .profile-selector {
+.map-travel-mode .profile-selector {
   pointer-events: auto;
   padding: 5px 6px;
   background: rgba(255, 255, 255, 0.96);
@@ -355,36 +393,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 .profile-edit-icon:hover { color: #374151; background: #f3f4f6; }
 
-/* ── Waypoints ─────────────────────────────────────────── */
-.waypoints-section {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f3f4f6;
-}
-.waypoints-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.waypoints-label { font-size: 13px; font-weight: 500; }
-.link-btn {
-  background: none;
-  border: none;
-  color: #dc2626;
-  font-size: 13px;
-  padding: 2px 4px;
-}
-.link-btn:hover { text-decoration: underline; }
-.hint { font-size: 12px; color: #9ca3af; margin-top: 3px; }
 
 /* ── Loading ───────────────────────────────────────────── */
-.loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  color: #6b7280;
-  font-size: 14px;
-}
 .spinner {
   width: 20px;
   height: 20px;
@@ -395,14 +405,6 @@ button { font-family: inherit; cursor: pointer; }
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Error ─────────────────────────────────────────────── */
-.error-msg {
-  padding: 12px 16px;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 13px;
-}
 
 /* ── Directions panel ──────────────────────────────────── */
 .directions-panel { padding: 12px 16px 16px; }
@@ -682,10 +684,15 @@ button { font-family: inherit; cursor: pointer; }
 .map-top-right > * {
   pointer-events: auto;
 }
+/* When routing, push controls below the routing header */
+.ui-routing .map-top-right { top: 140px; }
+.ui-routing .map-travel-mode { top: 110px; }
 @media (min-width: 768px) {
   .map-top-right {
-    top: 12px; /* profile selector is centered, no right-side overlap */
+    top: 12px;
   }
+  .ui-routing .map-top-right { top: 12px; right: 10px; }
+  .ui-routing .map-travel-mode { top: 12px; }
 }
 
 /* ── Map legend ─────────────────────────────────────── */
@@ -1068,45 +1075,7 @@ button { font-family: inherit; cursor: pointer; }
 .feedback-done-icon { font-size: 40px; margin-bottom: 8px; }
 .feedback-done-msg  { font-size: 16px; font-weight: 600; color: #111827; }
 
-/* ── Leaflet attribution: push above panel handle on mobile ── */
-@media (max-width: 767px) {
-  .leaflet-bottom.leaflet-right {
-    bottom: 112px;
-  }
-}
-
 /* ── Desktop layout ────────────────────────────────────── */
 @media (min-width: 768px) {
-  .app {
-    flex-direction: row;
-    overflow: hidden;
-  }
-
-  /* Sidebar */
-  .panel {
-    position: relative;
-    bottom: auto;
-    left: auto;
-    right: auto;
-    width: 340px;
-    min-width: 340px;
-    max-height: 100vh;
-    border-radius: 0;
-    box-shadow: 2px 0 12px rgba(0,0,0,.1);
-    transform: none !important;
-    order: -1;
-    overflow-y: auto;
-  }
-  .panel-handle { display: none; }
-
-  /* Map */
-  .map-wrap {
-    flex: 1;
-    height: 100vh;
-    padding-bottom: 0;
-  }
-
-  .app-title { font-size: 20px; }
-  .panel-header { padding: 14px 16px; }
   .maneuvers-list { max-height: 320px; overflow-y: auto; }
 }

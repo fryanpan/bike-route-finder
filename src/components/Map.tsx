@@ -1,9 +1,9 @@
 import L from 'leaflet'
 import { useEffect, useRef } from 'react'
 import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem, filterVisibleSegments } from '../utils/classify'
+import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
 import BikeMapOverlay from './BikeMapOverlay'
-import type { Route, RouteSegment } from '../utils/types'
+import type { Place, Route, RouteSegment } from '../utils/types'
 
 // Fix Leaflet default icons broken by Vite's asset bundling
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
@@ -58,17 +58,25 @@ function MapCenterController({ currentLocation }: { currentLocation: { lat: numb
   return null
 }
 
-function StartPointController({ startPoint }: { startPoint: { lat: number; lng: number } | null }) {
+/** Navigate the map to a point when it changes. Deduplicates by lat/lng. */
+function MapMoveController({ point, zoom, animate }: {
+  point: { lat: number; lng: number } | null
+  zoom: number
+  animate?: boolean
+}) {
   const map = useMap()
   const prevRef = useRef<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
-    if (!startPoint) return
-    // Only zoom if startPoint actually changed (not just re-render)
-    if (prevRef.current?.lat === startPoint.lat && prevRef.current?.lng === startPoint.lng) return
-    prevRef.current = startPoint
-    map.setView([startPoint.lat, startPoint.lng], 14)
-  }, [startPoint, map])
+    if (!point) return
+    if (prevRef.current?.lat === point.lat && prevRef.current?.lng === point.lng) return
+    prevRef.current = point
+    if (animate) {
+      map.flyTo([point.lat, point.lng], zoom, { duration: 0.8 })
+    } else {
+      map.setView([point.lat, point.lng], zoom)
+    }
+  }, [point, map, zoom, animate])
 
   return null
 }
@@ -104,7 +112,7 @@ function RouteDisplay({
   if (!route) return null
 
   if (route.segments?.length) {
-    const visible = filterVisibleSegments(route.segments)
+    const visible = route.segments
     return (
       <>
         {visible.map((seg: RouteSegment, i: number) => {
@@ -173,6 +181,7 @@ interface Props {
   currentLocation: { lat: number; lng: number } | null
   preferredItemNames: Set<string>
   showOtherPaths: boolean
+  flyToPlace?: Place | null
 }
 
 export default function Map({
@@ -187,6 +196,7 @@ export default function Map({
   currentLocation,
   preferredItemNames,
   showOtherPaths,
+  flyToPlace,
 }: Props) {
   return (
     <MapContainer
@@ -195,7 +205,8 @@ export default function Map({
       style={{ width: '100%', height: '100%' }}
     >
       <MapCenterController currentLocation={currentLocation} />
-      <StartPointController startPoint={startPoint} />
+      <MapMoveController point={startPoint} zoom={14} />
+      <MapMoveController point={flyToPlace ?? null} zoom={16} animate />
       <FitBoundsController route={route} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -233,6 +244,10 @@ export default function Map({
         >
         </Marker>
       ))}
+
+      {flyToPlace && (
+        <Marker position={[flyToPlace.lat, flyToPlace.lng]} />
+      )}
 
       {currentLocation && (
         <Marker
