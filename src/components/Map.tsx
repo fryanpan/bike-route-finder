@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem, filterVisibleSegments } from '../utils/classify'
 import BikeMapOverlay from './BikeMapOverlay'
-import type { Route, RouteSegment } from '../utils/types'
+import type { Place, Route, RouteSegment } from '../utils/types'
 
 // Fix Leaflet default icons broken by Vite's asset bundling
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
@@ -69,6 +69,20 @@ function StartPointController({ startPoint }: { startPoint: { lat: number; lng: 
     prevRef.current = startPoint
     map.setView([startPoint.lat, startPoint.lng], 14)
   }, [startPoint, map])
+
+  return null
+}
+
+function FlyToPlaceController({ place }: { place: Place | null }) {
+  const map = useMap()
+  const prevRef = useRef<Place | null>(null)
+
+  useEffect(() => {
+    if (!place) return
+    if (prevRef.current?.lat === place.lat && prevRef.current?.lng === place.lng) return
+    prevRef.current = place
+    map.flyTo([place.lat, place.lng], 16, { duration: 0.8 })
+  }, [place, map])
 
   return null
 }
@@ -173,6 +187,7 @@ interface Props {
   currentLocation: { lat: number; lng: number } | null
   preferredItemNames: Set<string>
   showOtherPaths: boolean
+  flyToPlace?: Place | null
 }
 
 export default function Map({
@@ -187,6 +202,7 @@ export default function Map({
   currentLocation,
   preferredItemNames,
   showOtherPaths,
+  flyToPlace,
 }: Props) {
   return (
     <MapContainer
@@ -197,6 +213,7 @@ export default function Map({
       <MapCenterController currentLocation={currentLocation} />
       <StartPointController startPoint={startPoint} />
       <FitBoundsController route={route} />
+      <FlyToPlaceController place={flyToPlace ?? null} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -233,6 +250,10 @@ export default function Map({
         >
         </Marker>
       ))}
+
+      {flyToPlace && (
+        <Marker position={[flyToPlace.lat, flyToPlace.lng]} />
+      )}
 
       {currentLocation && (
         <Marker
