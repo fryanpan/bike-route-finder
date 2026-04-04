@@ -24,6 +24,13 @@ const HOME_PLACE: Place = {
   shortLabel: 'Dresdener Str 112',
 }
 
+const SCHOOL_PLACE: Place = {
+  lat: 52.5105,
+  lng: 13.4247,
+  label: 'Wilhelmine-Gemberg-Weg 10, Berlin',
+  shortLabel: 'Wilhelmine-Gemberg-Weg 10',
+}
+
 const STORAGE_KEY = 'bike-route-profiles'
 const CUSTOM_PREFERRED_KEY = 'bike-route-custom-preferred'
 const CUSTOM_MODE_KEY = 'bike-route-mode'
@@ -294,6 +301,11 @@ export default function App() {
       icon: '🏠',
       onSelect: () => handleStartSelect(HOME_PLACE),
     },
+    {
+      label: 'School',
+      icon: '🏫',
+      onSelect: () => handleStartSelect(SCHOOL_PLACE),
+    },
   ]
 
   const endQuickOptions: QuickOption[] = [
@@ -307,6 +319,11 @@ export default function App() {
       label: 'Home',
       icon: '🏠',
       onSelect: () => handleEndSelect(HOME_PLACE),
+    },
+    {
+      label: 'School',
+      icon: '🏫',
+      onSelect: () => handleEndSelect(SCHOOL_PLACE),
     },
   ]
 
@@ -372,6 +389,27 @@ export default function App() {
           onClick={() => setPanelOpen((o) => !o)}
         >
           <div className="handle-bar" />
+        </div>
+
+        {/* Collapsed search strip — visible only when panel is closed */}
+        <div
+          className="collapsed-strip"
+          role="button"
+          aria-label="Open search"
+          onClick={() => setPanelOpen(true)}
+        >
+          <div className="cs-endpoint">
+            <span className="cs-icon">📍</span>
+            <span className={`cs-label${startPoint ? '' : ' cs-placeholder'}`}>
+              {startPoint?.shortLabel ?? 'My location'}
+            </span>
+          </div>
+          <span className="cs-arrow">›</span>
+          <div className="cs-endpoint cs-destination">
+            <span className={`cs-label${endPoint ? '' : ' cs-placeholder'}`}>
+              {endPoint?.shortLabel ?? 'Where to?'}
+            </span>
+          </div>
         </div>
 
         <div className="panel-content">

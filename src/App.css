@@ -35,7 +35,7 @@ button { font-family: inherit; cursor: pointer; }
 .map-wrap {
   flex: 1 1 auto;
   position: relative;
-  padding-bottom: 56px; /* space for collapsed panel handle */
+  padding-bottom: 108px; /* space for collapsed panel handle + search strip */
 }
 .map-wrap > .leaflet-container {
   width: 100%;
@@ -58,7 +58,7 @@ button { font-family: inherit; cursor: pointer; }
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .panel-open  { transform: translateY(0); }
-.panel-closed { transform: translateY(calc(100% - 52px)); }
+.panel-closed { transform: translateY(calc(100% - 108px)); }
 
 .panel-handle {
   display: flex;
@@ -93,10 +93,54 @@ button { font-family: inherit; cursor: pointer; }
 .app-subtitle { font-size: 12px; color: #6b7280; margin-top: 1px; }
 
 
+/* ── Collapsed search strip ────────────────────────────── */
+/* Only visible when panel is closed */
+.panel-open .collapsed-strip { display: none; }
+.panel-closed .collapsed-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 10px;
+  cursor: pointer;
+}
+.cs-endpoint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px;
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  min-width: 0;
+  transition: border-color .15s, background .15s;
+}
+.panel-closed .collapsed-strip:hover .cs-endpoint {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.cs-icon { font-size: 14px; flex-shrink: 0; }
+.cs-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-label.cs-placeholder { color: #9ca3af; font-weight: 400; }
+.cs-destination { flex: 1.4; }
+.cs-arrow {
+  font-size: 18px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 /* ── On-map bike layer toggle ──────────────────────────── */
 .map-bike-layer-toggle {
   position: absolute;
-  bottom: 70px; /* above panel handle on mobile */
+  bottom: 122px; /* above panel handle + search strip on mobile */
   left: 10px;
   z-index: 450;
 }
@@ -975,7 +1019,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Leaflet attribution: push above panel handle on mobile ── */
 @media (max-width: 767px) {
   .leaflet-bottom.leaflet-right {
-    bottom: 56px;
+    bottom: 112px;
   }
 }
 
