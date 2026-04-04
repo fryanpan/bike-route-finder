@@ -50,18 +50,27 @@ function mapResults(results: NominatimResult[]): Place[] {
  * For address-like queries (containing digits), tries structured search first
  * (street + city params) which Nominatim handles better than free-text for
  * house number lookups. Falls back to free-text search if no results.
+ *
+ * @param bias - Optional lat/lng point to softly bias results toward (e.g. the start location).
+ *   Adds a viewbox of ~100km around the point; bounded=0 so worldwide results still appear
+ *   if nothing is found nearby.
  */
-export async function searchPlaces(query: string): Promise<Place[]> {
+export async function searchPlaces(query: string, bias?: { lat: number; lng: number }): Promise<Place[]> {
   if (!query || query.length < 2) return []
+
+  const biasParams: Record<string, string> = bias
+    ? {
+        viewbox: `${bias.lng - 1.5},${bias.lat - 1.0},${bias.lng + 1.5},${bias.lat + 1.0}`,
+        bounded: '0',
+      }
+    : {}
 
   const baseParams = {
     format: 'json',
     limit: '5',
-    countrycodes: 'de',
-    // Berlin bounding box — used as preference hint (bounded=0) or hard constraint (bounded=1)
-    viewbox: '13.088,52.338,13.761,52.675',
     'accept-language': 'en',
     addressdetails: '1',
+    ...biasParams,
   }
 
   // For address-like queries, try structured Nominatim search first.
@@ -71,8 +80,6 @@ export async function searchPlaces(query: string): Promise<Place[]> {
       const structuredParams = new URLSearchParams({
         ...baseParams,
         street: query,
-        city: 'Berlin',
-        bounded: '0',
       })
       const resp = await fetch(`${API_BASE}/nominatim/search?${structuredParams}`)
       if (resp.ok) {
@@ -84,12 +91,10 @@ export async function searchPlaces(query: string): Promise<Place[]> {
     }
   }
 
-  // Free-text search. For address queries with no structured result, relax the
-  // bounding box to a soft preference so addresses near the Berlin boundary aren't dropped.
+  // Free-text search fallback (also used for non-address queries).
   const params = new URLSearchParams({
     ...baseParams,
     q: query,
-    bounded: looksLikeAddress(query) ? '0' : '1',
   })
 
   const response = await fetch(`${API_BASE}/nominatim/search?${params}`)
