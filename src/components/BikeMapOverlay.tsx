@@ -29,12 +29,16 @@ function getDebugTags(tags: Record<string, string>): string {
   return parts.join(' · ')
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function buildTooltipHtml(itemName: string | null, tags: Record<string, string>): string {
   const debugTags = getDebugTags(tags)
-  const name = tags.name ? ` — ${tags.name}` : ''
+  const name = tags.name ? ` — ${escapeHtml(tags.name)}` : ''
   return `<div style="font-size:12px;line-height:1.5;max-width:240px">
     <div style="font-weight:700">${itemName ?? 'Unknown'}${name}</div>
-    ${debugTags ? `<div style="color:#6b7280;font-size:11px;margin-top:1px">${debugTags}</div>` : ''}
+    ${debugTags ? `<div style="color:#6b7280;font-size:11px;margin-top:1px">${escapeHtml(debugTags)}</div>` : ''}
   </div>`
 }
 
