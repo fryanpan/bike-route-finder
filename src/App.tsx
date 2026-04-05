@@ -149,7 +149,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
 
-  const [overlayEnabled, setOverlayEnabled] = useState(true)
+  const overlayEnabled = true
   const [overlayStatus, setOverlayStatus]   = useState('idle')
   const [auditOpen, setAuditOpen]           = useState(false)
 
@@ -442,15 +442,8 @@ export default function App() {
           />
         </div>
 
-        {/* Bike layer toggle */}
+        {/* Bike layer status + audit gear */}
         <div className="map-bike-layer-toggle">
-          <button
-            className={`bike-layer-btn${overlayEnabled ? ' active' : ''}`}
-            onClick={() => setOverlayEnabled((v) => !v)}
-            title="Toggle bike infrastructure layer"
-          >
-            🗺️ Bike Layer
-          </button>
           <button
             className="audit-gear-btn"
             onClick={() => setAuditOpen(true)}
