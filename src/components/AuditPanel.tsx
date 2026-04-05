@@ -2,11 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { CITY_PRESETS, scanCity } from '../services/audit'
 import { saveScan, loadScan } from '../services/auditCache'
 import AuditGroupDetail from './AuditGroupDetail'
+import AuditRulesTab from './AuditRulesTab'
+import AuditLegendTab from './AuditLegendTab'
 import type { CityScan, AuditGroup } from '../services/audit'
 import { fetchRules } from '../services/rules'
 import type { RegionRules } from '../services/rules'
 
 type FilterStatus = 'all' | 'classified' | 'unclassified'
+type ActiveTab = 'groups' | 'rules' | 'legend'
 
 interface Props {
   onClose: () => void
@@ -24,6 +27,9 @@ export default function AuditPanel({ onClose }: Props) {
   // Filters
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [filterText, setFilterText] = useState('')
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<ActiveTab>('groups')
 
   // Region rules (KV-backed)
   const [rules, setRules] = useState<RegionRules>({ rules: [], legendItems: [] })
@@ -121,66 +127,107 @@ export default function AuditPanel({ onClose }: Props) {
         )}
       </div>
 
-      <div className="audit-filters">
-        <select
-          className="audit-select"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+      <div className="audit-tabs">
+        <button
+          className={`audit-tab${activeTab === 'groups' ? ' audit-tab-active' : ''}`}
+          onClick={() => setActiveTab('groups')}
         >
-          <option value="all">All</option>
-          <option value="classified">Classified</option>
-          <option value="unclassified">Unclassified</option>
-        </select>
-
-        <input
-          className="audit-search-input"
-          type="text"
-          placeholder="Search tags..."
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-        />
+          Groups
+        </button>
+        <button
+          className={`audit-tab${activeTab === 'rules' ? ' audit-tab-active' : ''}`}
+          onClick={() => setActiveTab('rules')}
+        >
+          Rules
+        </button>
+        <button
+          className={`audit-tab${activeTab === 'legend' ? ' audit-tab-active' : ''}`}
+          onClick={() => setActiveTab('legend')}
+        >
+          Legend Items
+        </button>
       </div>
 
-      <div className="audit-groups">
-        {filteredGroups.length === 0 && scan && (
-          <p className="audit-empty">No groups match the current filters.</p>
-        )}
-        {!scan && !scanning && (
-          <p className="audit-empty">Select a city and press Scan to start.</p>
-        )}
-        {filteredGroups.map((g, i) => (
-          <div key={i}>
-            <div
-              className={`audit-group-card${expandedGroup === i ? ' audit-group-card-expanded' : ''}`}
-              onClick={() => setExpandedGroup(expandedGroup === i ? null : i)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setExpandedGroup(expandedGroup === i ? null : i)
-                }
-              }}
+      {activeTab === 'groups' && (
+        <>
+          <div className="audit-filters">
+            <select
+              className="audit-select"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
             >
-              <div className="audit-group-sig">{g.signature || '(no tags)'}</div>
-              <div className="audit-group-meta">
-                <span className="audit-group-count">{g.wayCount} ways</span>
-                <span className={g.classification ? 'audit-cls-known' : 'audit-cls-null'}>
-                  {g.classification ?? 'unclassified'}
-                </span>
-              </div>
-            </div>
-            {expandedGroup === i && (
-              <AuditGroupDetail
-                group={g}
-                region={selectedCity.toLowerCase()}
-                rules={rules}
-                onRulesChange={setRules}
-              />
-            )}
+              <option value="all">All</option>
+              <option value="classified">Classified</option>
+              <option value="unclassified">Unclassified</option>
+            </select>
+
+            <input
+              className="audit-search-input"
+              type="text"
+              placeholder="Search tags..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+            />
           </div>
-        ))}
-      </div>
+
+          <div className="audit-groups">
+            {filteredGroups.length === 0 && scan && (
+              <p className="audit-empty">No groups match the current filters.</p>
+            )}
+            {!scan && !scanning && (
+              <p className="audit-empty">Select a city and press Scan to start.</p>
+            )}
+            {filteredGroups.map((g, i) => (
+              <div key={i}>
+                <div
+                  className={`audit-group-card${expandedGroup === i ? ' audit-group-card-expanded' : ''}`}
+                  onClick={() => setExpandedGroup(expandedGroup === i ? null : i)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setExpandedGroup(expandedGroup === i ? null : i)
+                    }
+                  }}
+                >
+                  <div className="audit-group-sig">{g.signature || '(no tags)'}</div>
+                  <div className="audit-group-meta">
+                    <span className="audit-group-count">{g.wayCount} ways</span>
+                    <span className={g.classification ? 'audit-cls-known' : 'audit-cls-null'}>
+                      {g.classification ?? 'unclassified'}
+                    </span>
+                  </div>
+                </div>
+                {expandedGroup === i && (
+                  <AuditGroupDetail
+                    group={g}
+                    region={selectedCity.toLowerCase()}
+                    rules={rules}
+                    onRulesChange={setRules}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'rules' && (
+        <AuditRulesTab
+          rules={rules}
+          region={selectedCity.toLowerCase()}
+          onRulesChange={setRules}
+        />
+      )}
+
+      {activeTab === 'legend' && (
+        <AuditLegendTab
+          rules={rules}
+          region={selectedCity.toLowerCase()}
+          onRulesChange={setRules}
+        />
+      )}
     </div>
   )
 }
