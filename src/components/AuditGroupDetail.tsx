@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { getStreetImage } from '../services/mapillary'
+import type { MapillaryImage } from '../services/mapillary'
 import type { AuditGroup, AuditWay } from '../services/audit'
 
 // Re-use Leaflet default icon fix from Map.tsx
@@ -33,15 +35,43 @@ function FitSampleBounds({ samples }: { samples: AuditWay[] }) {
   return null
 }
 
+type ImageState = { loading: true } | { loading: false; image: MapillaryImage | null }
+
 interface Props {
   group: AuditGroup
 }
 
 export default function AuditGroupDetail({ group }: Props) {
+  const [images, setImages] = useState<Map<number, ImageState>>(new Map())
+  const [expandedImage, setExpandedImage] = useState<string | null>(null)
+
   const samplesWithCenter = useMemo(
     () => group.samples.filter((s) => s.center),
     [group.samples],
   )
+
+  // Fetch Mapillary images for each sample
+  useEffect(() => {
+    const stateMap = new Map<number, ImageState>()
+    for (const s of samplesWithCenter) {
+      stateMap.set(s.osmId, { loading: true })
+    }
+    setImages(new Map(stateMap))
+    setExpandedImage(null)
+
+    let cancelled = false
+    for (const s of samplesWithCenter) {
+      getStreetImage(s.center!.lat, s.center!.lon).then((img) => {
+        if (cancelled) return
+        setImages((prev) => {
+          const next = new Map(prev)
+          next.set(s.osmId, { loading: false, image: img })
+          return next
+        })
+      })
+    }
+    return () => { cancelled = true }
+  }, [samplesWithCenter])
 
   const defaultCenter: [number, number] = samplesWithCenter.length > 0
     ? [samplesWithCenter[0].center!.lat, samplesWithCenter[0].center!.lon]
@@ -65,6 +95,44 @@ export default function AuditGroupDetail({ group }: Props) {
           ))}
         </MapContainer>
       </div>
+
+      {/* Mapillary images */}
+      <div className="audit-images">
+        {samplesWithCenter.map((s) => {
+          const state = images.get(s.osmId)
+          if (!state || state.loading) {
+            return <div key={s.osmId} className="audit-thumb audit-thumb-loading" />
+          }
+          if (!state.image) {
+            return (
+              <div key={s.osmId} className="audit-thumb audit-thumb-none">
+                No image
+              </div>
+            )
+          }
+          return (
+            <img
+              key={s.osmId}
+              className="audit-thumb"
+              src={state.image.thumbUrl}
+              alt={`Street view near way ${s.osmId}`}
+              onClick={() => setExpandedImage(
+                expandedImage === state.image!.thumbUrl ? null : state.image!.thumbUrl,
+              )}
+            />
+          )
+        })}
+      </div>
+
+      {/* Expanded image */}
+      {expandedImage && (
+        <img
+          className="audit-image-expanded"
+          src={expandedImage}
+          alt="Street view expanded"
+          onClick={() => setExpandedImage(null)}
+        />
+      )}
 
       {/* Sample tag tables */}
       <div className="audit-samples">
