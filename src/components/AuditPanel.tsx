@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CITY_PRESETS, scanCity } from '../services/audit'
+import { CITY_PRESETS, scanCity, reclassifyGroups } from '../services/audit'
 import { saveScan, loadScan } from '../services/auditCache'
 import AuditGroupDetail from './AuditGroupDetail'
 import AuditRulesTab from './AuditRulesTab'
@@ -32,7 +32,13 @@ export default function AuditPanel({ onClose }: Props) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('groups')
 
   // Region rules (KV-backed)
-  const [rules, setRules] = useState<RegionRules>({ rules: [], legendItems: [] })
+  const [rules, setRulesRaw] = useState<RegionRules>({ rules: [], legendItems: [] })
+
+  // When rules change, reclassify the scan groups immediately
+  const setRules = useCallback((newRules: RegionRules) => {
+    setRulesRaw(newRules)
+    setScan((prev) => prev ? reclassifyGroups(prev, newRules.rules) : prev)
+  }, [])
 
   // Load cached scan and rules on mount and when city changes
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function AuditPanel({ onClose }: Props) {
       if (!cancelled && cached) setScan(cached)
     })
     fetchRules(selectedCity.toLowerCase()).then((r) => {
-      if (!cancelled) setRules(r)
+      if (!cancelled) setRulesRaw(r)
     })
     return () => { cancelled = true }
   }, [selectedCity])
@@ -51,7 +57,7 @@ export default function AuditPanel({ onClose }: Props) {
     setSelectedCity(city)
     setScan(null)
     setProgress(null)
-    setRules({ rules: [], legendItems: [] })
+    setRulesRaw({ rules: [], legendItems: [] })
   }, [])
 
   async function handleScan() {
