@@ -12,10 +12,14 @@ describe('getStreetImage', () => {
   })
 
   it('returns null when no token is configured', async () => {
-    // import.meta.env.VITE_MAPILLARY_TOKEN is undefined by default in test env
+    const saved = import.meta.env.VITE_MAPILLARY_TOKEN
+    import.meta.env.VITE_MAPILLARY_TOKEN = ''
+
     const { getStreetImage } = await import('../src/services/mapillary')
     const result = await getStreetImage(52.52, 13.405)
     expect(result).toBeNull()
+
+    import.meta.env.VITE_MAPILLARY_TOKEN = saved
   })
 
   it('returns null on API error', async () => {

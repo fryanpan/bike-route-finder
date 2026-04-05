@@ -40,6 +40,8 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
       { icon: '〰️', name: 'Painted bike lane',          useRoads: 0.3,  defaultPreferred: false },
       { icon: '🚌', name: 'Shared bus lane',            useRoads: 0.3,  defaultPreferred: false },
       { icon: '🏠', name: 'Residential road',           useRoads: 0.5,  defaultPreferred: false },
+      { icon: '🔧', name: 'Service road',               useRoads: 0.5,  defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.5, defaultPreferred: false },
     ]},
   ],
   trailer: [
@@ -56,6 +58,8 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Separated bike track (narrow)', useRoads: 0.0, defaultPreferred: false },
+      { icon: '🔧', name: 'Service road',               useRoads: 0.15, defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.15, defaultPreferred: false },
     ]},
   ],
   training: [
@@ -72,6 +76,8 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Separated bike track (slow)', useRoads: 0.0, defaultPreferred: false },
+      { icon: '🔧', name: 'Service road',               useRoads: 0.6,  defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.6, defaultPreferred: false },
     ]},
   ],
 }
