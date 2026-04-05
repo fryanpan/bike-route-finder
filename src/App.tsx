@@ -17,6 +17,8 @@ import {
   getDefaultPreferredItems,
   getCostingFromPreferences,
 } from './utils/classify'
+import { fetchRules } from './services/rules'
+import type { ClassificationRule } from './services/rules'
 import type { Place, Route, ProfileMap, RiderProfile } from './utils/types'
 import { Sentry } from './sentry'
 
@@ -150,6 +152,17 @@ export default function App() {
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [overlayStatus, setOverlayStatus]   = useState('idle')
   const [auditOpen, setAuditOpen]           = useState(false)
+
+  // Region classification rules (fetched from KV on mount)
+  const [regionRules, setRegionRules] = useState<ClassificationRule[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchRules('berlin').then((r) => {
+      if (!cancelled) setRegionRules(r.rules)
+    }).catch(() => { /* ignore fetch errors on load */ })
+    return () => { cancelled = true }
+  }, [])
 
   // Derived: has the user customized their travel mode's preferred path types?
   const isCustomTravelMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
@@ -399,6 +412,7 @@ export default function App() {
             preferredItemNames={preferredItemNames}
             showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}
+            regionRules={regionRules}
           />
         </Suspense>
 
