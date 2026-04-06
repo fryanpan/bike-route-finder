@@ -358,17 +358,6 @@ button { font-family: inherit; cursor: pointer; }
 .profile-chip.selected .profile-chip-icon { color: #2563eb; }
 .profile-chip-emoji { font-size: 16px; line-height: 1; }
 
-.profile-edit-icon {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  color: #9ca3af;
-  padding: 4px;
-  line-height: 1;
-  border-radius: 6px;
-}
-.profile-edit-icon:hover { color: #374151; background: #f3f4f6; }
 
 
 /* ── Loading ───────────────────────────────────────────── */
