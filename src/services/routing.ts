@@ -117,15 +117,42 @@ interface ValhallaManeuverRaw {
   time: number
 }
 
+interface ValhallaTrip {
+  legs: Array<{ shape: string; maneuvers?: ValhallaManeuverRaw[] }>
+  summary: { length: number; time: number }
+}
+
+/** Parse a single Valhalla trip object into our Route type. */
+function parseTrip(trip: ValhallaTrip): Route {
+  const coordinates = trip.legs.flatMap((leg) => decode(leg.shape, 6))
+  const maneuvers = trip.legs.flatMap((leg) => leg.maneuvers ?? [])
+  return {
+    coordinates,
+    maneuvers,
+    summary: {
+      distance: trip.summary.length, // km
+      duration: trip.summary.time,   // seconds
+    },
+  }
+}
+
 /**
- * Request a route from the Valhalla public instance.
+ * Request route(s) from the Valhalla public instance.
+ *
+ * When alternates > 0, Valhalla returns the primary route in `trip` and
+ * additional routes in an `alternates` array (each with its own `trip`).
+ * We return all routes as an array, primary first.
+ *
+ * Alternates are only requested when there are no intermediate waypoints
+ * (Valhalla does not support alternates with via points).
  */
 export async function getRoute(
   start: Place,
   end: Place,
   profile: RiderProfile,
   waypoints: LatLng[] = [],
-): Promise<Route> {
+  alternates: number = 0,
+): Promise<Route[]> {
   const locations = [
     { lat: start.lat, lon: start.lng },
     ...waypoints.map((wp) => ({ lat: wp.lat, lon: wp.lng })),
@@ -138,11 +165,15 @@ export async function getRoute(
     ? { ...profile.costingOptions, avoid_bad_surfaces: Math.max(0.5, profile.costingOptions.avoid_bad_surfaces) }
     : profile.costingOptions
 
+  // Only request alternates when there are no intermediate waypoints
+  const requestAlternates = alternates > 0 && waypoints.length === 0
+
   const body = {
     locations,
     costing: 'bicycle',
     costing_options: { bicycle: costingOptions },
     directions_options: { units: 'km', language: 'en-US' },
+    ...(requestAlternates ? { alternates } : {}),
   }
 
   const response = await fetch(`${API_BASE}/valhalla/route`, {
@@ -157,24 +188,21 @@ export async function getRoute(
   }
 
   const data = await response.json() as {
-    trip?: {
-      legs: Array<{ shape: string; maneuvers?: ValhallaManeuverRaw[] }>
-      summary: { length: number; time: number }
-    }
+    trip?: ValhallaTrip
+    alternates?: Array<{ trip: ValhallaTrip }>
   }
   if (!data.trip) throw new Error('No route found between these points')
 
-  const coordinates = data.trip.legs.flatMap((leg) => decode(leg.shape, 6))
-  const maneuvers = data.trip.legs.flatMap((leg) => leg.maneuvers ?? [])
+  const routes: Route[] = [parseTrip(data.trip)]
 
-  return {
-    coordinates,
-    maneuvers,
-    summary: {
-      distance: data.trip.summary.length, // km
-      duration: data.trip.summary.time,   // seconds
-    },
+  // Append any alternate routes Valhalla returned
+  if (data.alternates) {
+    for (const alt of data.alternates) {
+      if (alt.trip) routes.push(parseTrip(alt.trip))
+    }
   }
+
+  return routes
 }
 
 /**

@@ -174,6 +174,8 @@ interface Props {
   startPoint: { lat: number; lng: number; shortLabel?: string } | null
   endPoint: { lat: number; lng: number; shortLabel?: string } | null
   route: Route | null
+  routes?: Route[]
+  selectedRouteIndex?: number
   waypoints: Array<{ lat: number; lng: number }>
   onRemoveWaypoint: (index: number) => void
   overlayEnabled: boolean
@@ -184,12 +186,15 @@ interface Props {
   showOtherPaths: boolean
   flyToPlace?: Place | null
   regionRules?: ClassificationRule[]
+  onSelectRoute?: (index: number) => void
 }
 
 export default function Map({
   startPoint,
   endPoint,
   route,
+  routes = [],
+  selectedRouteIndex = 0,
   waypoints,
   onRemoveWaypoint,
   overlayEnabled,
@@ -200,6 +205,7 @@ export default function Map({
   showOtherPaths,
   flyToPlace,
   regionRules,
+  onSelectRoute,
 }: Props) {
   return (
     <MapContainer
@@ -226,6 +232,25 @@ export default function Map({
         regionRules={regionRules}
       />
 
+      {/* Alternate routes (faded, clickable) */}
+      {routes.map((altRoute, i) => {
+        if (i === selectedRouteIndex) return null
+        return (
+          <Polyline
+            key={`alt-${i}`}
+            positions={altRoute.coordinates}
+            color="#94a3b8"
+            weight={10}
+            opacity={0.45}
+            dashArray="8 6"
+            eventHandlers={onSelectRoute ? {
+              click: () => onSelectRoute(i),
+            } : undefined}
+          />
+        )
+      })}
+
+      {/* Selected route (prominent) */}
       <RouteDisplay
         route={route}
         profileKey={profileKey}
