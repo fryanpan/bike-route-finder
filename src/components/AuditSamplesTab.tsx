@@ -147,6 +147,7 @@ export default function AuditSamplesTab({ scan, regionRules }: Props) {
   return (
     <div className="audit-samples-tab">
       <div className="audit-samples-controls">
+        <label className="audit-samples-label">Travel Mode</label>
         <select
           className="audit-select"
           value={travelMode}

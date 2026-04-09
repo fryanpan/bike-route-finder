@@ -770,7 +770,15 @@ button { font-family: inherit; cursor: pointer; }
   padding: 12px 16px;
 }
 .audit-samples-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+.audit-samples-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
 }
 .audit-samples-group { margin-bottom: 16px; }
 .audit-samples-group-title {
