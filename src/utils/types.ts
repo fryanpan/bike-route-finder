@@ -108,6 +108,8 @@ export interface Route {
     duration: number // seconds
   }
   segments?: RouteSegment[]
+  /** Which routing engine produced this route (e.g. 'valhalla', 'brouter'). */
+  engine?: string
 }
 
 export interface OsmWay {
