@@ -268,11 +268,13 @@ export default function App() {
         })
       }
 
-      // Enrich each Valhalla route with profile-aware colored segments in the background
-      taggedValhalla.forEach((result, i) => {
-        getRouteSegments(result.coordinates, profileKey).then((segments) => {
+      // Enrich each Valhalla route with profile-aware colored segments in the background.
+      // Match by coordinates reference (not index) since BRouter routes may append to the array.
+      taggedValhalla.forEach((result) => {
+        const coords = result.coordinates
+        getRouteSegments(coords, profileKey).then((segments) => {
           if (segments) {
-            setRoutes((prev) => prev.map((r, j) => j === i ? { ...r, segments } : r))
+            setRoutes((prev) => prev.map((r) => r.coordinates === coords ? { ...r, segments } : r))
           }
         })
       })
