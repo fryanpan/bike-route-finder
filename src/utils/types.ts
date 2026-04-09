@@ -98,6 +98,7 @@ export interface ValhallaManeuver {
   instruction: string
   length: number
   time: number
+  begin_shape_index?: number
 }
 
 export interface Route {

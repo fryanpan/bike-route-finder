@@ -573,6 +573,7 @@ startQuickOptions={startQuickOptions}
                   route={route}
                   onClose={backToSearch}
                   preferredItemNames={preferredItemNames}
+                  currentLocation={currentLocation}
                 />
               </div>
             )}

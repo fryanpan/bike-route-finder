@@ -564,6 +564,24 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 14px;
 }
 
+/* Navigation segment badge */
+.nav-segment-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.nav-segment-preferred { background: #d1fae5; color: #065f46; }
+.nav-segment-other { background: #fef3c7; color: #92400e; }
+.nav-walk-badge {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
 /* Maneuvers list */
 .maneuvers-list { list-style: none; display: flex; flex-direction: column; }
 .maneuver {
