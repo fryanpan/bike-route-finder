@@ -43,7 +43,7 @@ button { font-family: inherit; cursor: pointer; }
   top: auto;
   left: auto;
   bottom: 24px;
-  right: 10px;
+  right: 12px;
 }
 @media (min-width: 768px) {
   .leaflet-top.leaflet-left { bottom: 80px; } /* above feedback FAB */
@@ -60,7 +60,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Search bar (top, compact) */
 .floating-search {
-  top: 12px;
+  top: max(12px, env(safe-area-inset-top));
   left: 12px;
   right: 12px;
   padding: 6px 10px;
@@ -69,7 +69,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Place detail (bottom card) */
 .floating-place-detail {
-  bottom: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
   left: 12px;
   right: 12px;
   padding: 0;
@@ -77,7 +77,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Routing header (top) */
 .floating-routing-header {
-  top: 12px;
+  top: max(12px, env(safe-area-inset-top));
   left: 12px;
   right: 12px;
   padding: 6px 10px;
@@ -88,17 +88,23 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Route summary (bottom) */
 .floating-route-summary {
-  bottom: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
   left: 12px;
   right: 12px;
-  max-height: 50vh;
+  max-height: 40vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@media (max-height: 600px) {
+  .floating-route-summary {
+    max-height: calc(100vh - 140px);
+  }
 }
 
 /* Loading/error cards */
 .floating-loading {
-  bottom: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
   left: 12px;
   right: 12px;
   display: flex;
@@ -109,7 +115,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 14px;
 }
 .floating-error {
-  bottom: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
   left: 12px;
   right: 12px;
   padding: 12px 16px;
@@ -165,9 +171,12 @@ button { font-family: inherit; cursor: pointer; }
   border: none;
   font-size: 20px;
   color: #6b7280;
-  padding: 6px 4px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
-  margin-top: 2px;
   flex-shrink: 0;
 }
 .routing-back-btn:hover { color: #111827; }
@@ -215,7 +224,7 @@ button { font-family: inherit; cursor: pointer; }
 .map-bike-layer-toggle {
   position: absolute;
   bottom: 24px;
-  left: 10px;
+  left: 12px;
   z-index: 450;
 }
 .bike-layer-status {
@@ -263,13 +272,14 @@ button { font-family: inherit; cursor: pointer; }
 .search-input:focus { border-color: #2563eb; background: #fff; }
 .search-clear-btn {
   position: absolute;
-  right: 8px;
+  right: 4px;
   background: none;
   border: none;
   color: #9ca3af;
   font-size: 14px;
   line-height: 1;
-  padding: 4px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -288,7 +298,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,.12);
   z-index: 600;
-  max-height: 220px;
+  max-height: min(220px, 40vh);
   overflow-y: auto;
   list-style: none;
   margin-top: 4px;
@@ -306,8 +316,8 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Travel mode selector map overlay ─────────────────── */
 .map-travel-mode {
   position: absolute;
-  top: 60px;
-  right: 10px;
+  top: max(60px, calc(48px + env(safe-area-inset-top)));
+  right: 12px;
   z-index: 450;
   pointer-events: none;
 }
@@ -472,6 +482,8 @@ button { font-family: inherit; cursor: pointer; }
   align-items: baseline;
   gap: 6px;
   flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .summary-distance { font-size: 20px; font-weight: 700; }
 .summary-sep  { color: #d1d5db; font-size: 16px; }
@@ -481,7 +493,11 @@ button { font-family: inherit; cursor: pointer; }
   border: none;
   font-size: 18px;
   color: #9ca3af;
-  padding: 4px 6px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
   border-radius: 6px;
 }
@@ -505,6 +521,7 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   gap: 12px;
   margin-top: 5px;
+  flex-wrap: wrap;
 }
 .ql-preferred { font-size: 11px; color: #047857; font-weight: 600; }
 .ql-walking   { font-size: 11px; color: #6b7280; font-weight: 600; }
@@ -558,7 +575,7 @@ button { font-family: inherit; cursor: pointer; }
   margin-bottom: 6px;
 }
 .nav-icon        { font-size: 30px; flex-shrink: 0; }
-.nav-instruction { font-size: 16px; font-weight: 500; line-height: 1.4; }
+.nav-instruction { font-size: 16px; font-weight: 500; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
 .nav-dist        { font-size: 13px; color: #6b7280; margin-bottom: 12px; }
 .nav-controls {
   display: flex;
@@ -597,7 +614,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .nav-segment-preferred { background: #d1fae5; color: #065f46; }
 .nav-segment-walking   { background: #e5e7eb; color: #374151; }
-.nav-segment-other { background: #fef3c7; color: #92400e; }
+.nav-segment-other { background: #fde68a; color: #78350f; }
 
 /* Segment feedback */
 .segment-feedback {
@@ -803,8 +820,8 @@ button { font-family: inherit; cursor: pointer; }
  */
 .map-top-right {
   position: absolute;
-  top: 106px; /* below search bar (60px) + travel mode chips (46px) */
-  right: 10px;
+  top: max(106px, calc(94px + env(safe-area-inset-top)));
+  right: 12px;
   z-index: 450;
   display: flex;
   flex-direction: row;
@@ -819,8 +836,8 @@ button { font-family: inherit; cursor: pointer; }
 .ui-routing .map-top-right { top: 168px; }
 @media (min-width: 768px) {
   .map-top-right { top: 60px; }
-  .map-travel-mode { top: 12px; right: 10px; }
-  .ui-routing .map-top-right { top: 12px; right: 10px; }
+  .map-travel-mode { top: 12px; right: 12px; }
+  .ui-routing .map-top-right { top: 12px; right: 12px; }
   .ui-routing .map-travel-mode { top: 12px; }
 }
 
@@ -903,7 +920,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 4px;
   font-size: 10px;
   line-height: 1;
-  padding: 1px 4px;
+  padding: 6px 8px;
   color: #9ca3af;
   cursor: pointer;
   transition: all .1s;
@@ -1923,6 +1940,13 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px;
   color: #6b7280;
   margin-top: 2px;
+}
+
+/* ── Narrow mobile adjustments ─────────────────────────── */
+@media (max-width: 359px) {
+  .summary-distance { font-size: 17px; }
+  .summary-time { font-size: 13px; }
+  .maneuver-text { font-size: 12px; }
 }
 
 /* ── Desktop layout ────────────────────────────────────── */
