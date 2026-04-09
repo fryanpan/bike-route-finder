@@ -100,22 +100,34 @@ export function buildBRouterSegments(
 
   // We use the route coordinates directly since message rows are sparse
   // (one per OSM way change). Map message rows to a simple tag-per-segment approach.
+  let currentWalking = false
+
   for (const row of messageRows) {
     const item = classifyBRouterTags(row.wayTags)
+    const walking = isWalkingSegment(row.wayTags)
     const coord: [number, number] = [row.lat, row.lng]
 
-    if (item !== currentItem && currentCoords.length > 0) {
+    if ((item !== currentItem || walking !== currentWalking) && currentCoords.length > 0) {
       // Bridge: last coord of prev segment = first coord of new segment
-      segments.push({ itemName: currentItem, coordinates: [...currentCoords] })
+      segments.push({
+        itemName: currentItem,
+        coordinates: [...currentCoords],
+        ...(currentWalking ? { isWalking: true } : {}),
+      })
       currentCoords = [currentCoords[currentCoords.length - 1]]
     }
 
     currentItem = item
+    currentWalking = walking
     currentCoords.push(coord)
   }
 
   if (currentCoords.length > 0) {
-    segments.push({ itemName: currentItem, coordinates: currentCoords })
+    segments.push({
+      itemName: currentItem,
+      coordinates: currentCoords,
+      ...(currentWalking ? { isWalking: true } : {}),
+    })
   }
 
   return segments
@@ -133,6 +145,25 @@ function classifyBRouterTags(tags: Record<string, string>): string | null {
   if (tags['highway'] === 'residential') return 'Quiet side street'
   if (tags['cycleway'] === 'lane' || tags['cycleway'] === 'track') return 'On-road bike lane'
   return null
+}
+
+/**
+ * Detect whether a BRouter segment requires walking/dismounting.
+ *
+ * Walking segments are:
+ * - highway=footway without bicycle=yes or bicycle=designated
+ * - highway=steps (stairs)
+ * - bicycle=dismount
+ */
+export function isWalkingSegment(tags: Record<string, string>): boolean {
+  if (tags['bicycle'] === 'dismount') return true
+  if (tags['highway'] === 'steps') return true
+  if (tags['highway'] === 'footway' &&
+      tags['bicycle'] !== 'yes' &&
+      tags['bicycle'] !== 'designated') {
+    return true
+  }
+  return false
 }
 
 /**

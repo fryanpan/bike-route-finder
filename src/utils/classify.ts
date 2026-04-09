@@ -81,24 +81,25 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
 
 // ── Route quality stats ─────────────────────────────────────────────────────
 
-export interface RouteQuality { preferred: number; other: number }
+export interface RouteQuality { preferred: number; other: number; walking: number }
 
 /**
- * Fraction of route (by coordinate count) on preferred vs. other infrastructure.
+ * Fraction of route (by coordinate count) on preferred, other, and walking infrastructure.
  */
 export function computeRouteQuality(
   segments: RouteSegment[],
   preferredItemNames: Set<string>,
 ): RouteQuality {
-  if (!segments.length) return { preferred: 0, other: 0 }
-  let preferred = 0, other = 0
+  if (!segments.length) return { preferred: 0, other: 0, walking: 0 }
+  let preferred = 0, other = 0, walking = 0
   for (const seg of segments) {
     const count = Math.max(1, seg.coordinates.length - 1)
-    if (seg.itemName && preferredItemNames.has(seg.itemName)) preferred += count
+    if (seg.isWalking) walking += count
+    else if (seg.itemName && preferredItemNames.has(seg.itemName)) preferred += count
     else other += count
   }
-  const total = preferred + other || 1
-  return { preferred: preferred / total, other: other / total }
+  const total = preferred + other + walking || 1
+  return { preferred: preferred / total, other: other / total, walking: walking / total }
 }
 
 // ── Preferred item helpers ──────────────────────────────────────────────────

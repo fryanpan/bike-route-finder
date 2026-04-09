@@ -91,6 +91,8 @@ export interface ValhallaEdge {
 export interface RouteSegment {
   itemName: string | null
   coordinates: [number, number][]
+  /** True when the rider should dismount and walk their bike on this segment. */
+  isWalking?: boolean
 }
 
 export interface ValhallaManeuver {

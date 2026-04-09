@@ -211,10 +211,11 @@ describe('getDefaultPreferredItems', () => {
 
 // ── computeRouteQuality ───────────────────────────────────────────────────────
 
-describe('computeRouteQuality — binary preferred/other model', () => {
-  const seg = (itemName: string | null, len: number): RouteSegment => ({
+describe('computeRouteQuality — preferred/other/walking model', () => {
+  const seg = (itemName: string | null, len: number, isWalking?: boolean): RouteSegment => ({
     itemName,
     coordinates: Array.from({ length: len + 1 }, (_, i) => [i, 0] as [number, number]),
+    ...(isWalking ? { isWalking: true } : {}),
   })
 
   it('splits preferred vs other by item name', () => {
@@ -227,6 +228,7 @@ describe('computeRouteQuality — binary preferred/other model', () => {
     const q = computeRouteQuality(segments, preferred)
     expect(q.preferred).toBeCloseTo(3 / 5)
     expect(q.other).toBeCloseTo(2 / 5)
+    expect(q.walking).toBe(0)
   })
 
   it('returns all preferred when every item is in preferredItemNames', () => {
@@ -238,6 +240,7 @@ describe('computeRouteQuality — binary preferred/other model', () => {
     const q = computeRouteQuality(segments, preferred)
     expect(q.preferred).toBe(1)
     expect(q.other).toBe(0)
+    expect(q.walking).toBe(0)
   })
 
   it('null itemName always counts as other', () => {
@@ -245,12 +248,27 @@ describe('computeRouteQuality — binary preferred/other model', () => {
     const q = computeRouteQuality(segments, new Set(['Car-free path / Radweg']))
     expect(q.preferred).toBe(0)
     expect(q.other).toBe(1)
+    expect(q.walking).toBe(0)
   })
 
-  it('returns 0/0 fractions for empty segments', () => {
+  it('returns 0/0/0 fractions for empty segments', () => {
     const q = computeRouteQuality([], new Set())
     expect(q.preferred).toBe(0)
     expect(q.other).toBe(0)
+    expect(q.walking).toBe(0)
+  })
+
+  it('counts walking segments separately from preferred and other', () => {
+    const segments: RouteSegment[] = [
+      seg('Car-free path / Radweg', 3),
+      seg(null, 1, true),  // walking segment
+      seg(null, 1),
+    ]
+    const preferred = new Set(['Car-free path / Radweg'])
+    const q = computeRouteQuality(segments, preferred)
+    expect(q.preferred).toBeCloseTo(3 / 5)
+    expect(q.walking).toBeCloseTo(1 / 5)
+    expect(q.other).toBeCloseTo(1 / 5)
   })
 })
 

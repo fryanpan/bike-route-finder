@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { parseMessages, buildBRouterSegments } from '../src/services/brouter'
+import { parseMessages, buildBRouterSegments, isWalkingSegment } from '../src/services/brouter'
 
 describe('parseMessages', () => {
   test('parses header + data rows correctly', () => {
@@ -77,5 +77,91 @@ describe('buildBRouterSegments', () => {
 
   test('returns empty segments for empty input', () => {
     expect(buildBRouterSegments([], [])).toEqual([])
+  })
+
+  test('marks walking segments for footway without bicycle=yes', () => {
+    const messages: Array<(string | number)[]> = [
+      ['Longitude', 'Latitude', 'Elevation', 'Distance', 'WayTags', 'Time'],
+      [13388800, 52517000, 42, 0, 'highway=cycleway', 0],
+      [13389000, 52517200, 42, 50, 'highway=footway', 5],
+      [13389500, 52517500, 42, 80, 'highway=cycleway', 8],
+    ]
+
+    const rows = parseMessages(messages)
+    const segments = buildBRouterSegments(rows, [[52.517, 13.3888]])
+
+    expect(segments).toHaveLength(3)
+    expect(segments[0].isWalking).toBeUndefined()
+    expect(segments[1].isWalking).toBe(true)
+    expect(segments[2].isWalking).toBeUndefined()
+  })
+
+  test('marks bicycle=dismount as walking', () => {
+    const messages: Array<(string | number)[]> = [
+      ['Longitude', 'Latitude', 'Elevation', 'Distance', 'WayTags', 'Time'],
+      [13388800, 52517000, 42, 0, 'highway=residential bicycle=dismount', 0],
+    ]
+
+    const rows = parseMessages(messages)
+    const segments = buildBRouterSegments(rows, [[52.517, 13.3888]])
+
+    expect(segments).toHaveLength(1)
+    expect(segments[0].isWalking).toBe(true)
+  })
+
+  test('marks highway=steps as walking', () => {
+    const messages: Array<(string | number)[]> = [
+      ['Longitude', 'Latitude', 'Elevation', 'Distance', 'WayTags', 'Time'],
+      [13388800, 52517000, 42, 0, 'highway=steps', 0],
+    ]
+
+    const rows = parseMessages(messages)
+    const segments = buildBRouterSegments(rows, [[52.517, 13.3888]])
+
+    expect(segments).toHaveLength(1)
+    expect(segments[0].isWalking).toBe(true)
+  })
+
+  test('does NOT mark footway with bicycle=yes as walking', () => {
+    const messages: Array<(string | number)[]> = [
+      ['Longitude', 'Latitude', 'Elevation', 'Distance', 'WayTags', 'Time'],
+      [13388800, 52517000, 42, 0, 'highway=footway bicycle=yes', 0],
+    ]
+
+    const rows = parseMessages(messages)
+    const segments = buildBRouterSegments(rows, [[52.517, 13.3888]])
+
+    expect(segments).toHaveLength(1)
+    expect(segments[0].isWalking).toBeUndefined()
+  })
+})
+
+describe('isWalkingSegment', () => {
+  test('footway without bicycle=yes is walking', () => {
+    expect(isWalkingSegment({ highway: 'footway' })).toBe(true)
+  })
+
+  test('footway with bicycle=yes is NOT walking', () => {
+    expect(isWalkingSegment({ highway: 'footway', bicycle: 'yes' })).toBe(false)
+  })
+
+  test('footway with bicycle=designated is NOT walking', () => {
+    expect(isWalkingSegment({ highway: 'footway', bicycle: 'designated' })).toBe(false)
+  })
+
+  test('steps is walking', () => {
+    expect(isWalkingSegment({ highway: 'steps' })).toBe(true)
+  })
+
+  test('bicycle=dismount is walking', () => {
+    expect(isWalkingSegment({ highway: 'residential', bicycle: 'dismount' })).toBe(true)
+  })
+
+  test('cycleway is NOT walking', () => {
+    expect(isWalkingSegment({ highway: 'cycleway' })).toBe(false)
+  })
+
+  test('residential is NOT walking', () => {
+    expect(isWalkingSegment({ highway: 'residential' })).toBe(false)
   })
 })
