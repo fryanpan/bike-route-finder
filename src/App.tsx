@@ -11,6 +11,7 @@ import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import FeedbackWidget from './components/FeedbackWidget'
 import { getRoute, getRouteSegments, DEFAULT_PROFILES } from './services/routing'
+import { logRoute } from './services/routeLog'
 import { reverseGeocode } from './services/geocoding'
 import {
   getDefaultPreferredItems,
@@ -241,6 +242,20 @@ export default function App() {
       const costingOptions = getCostingFromPreferences(preferredItemNames, profileKey, profile)
       const result = await getRoute(start, end, { ...profile, costingOptions }, wps)
       setRoute(result)
+
+      // Fire-and-forget route log
+      logRoute({
+        startLat: start.lat,
+        startLng: start.lng,
+        startLabel: start.label,
+        endLat: end.lat,
+        endLng: end.lng,
+        endLabel: end.label,
+        travelMode: profileKey,
+        engine: 'valhalla',
+        distanceM: Math.round(result.summary.distance * 1000),
+        durationS: Math.round(result.summary.duration),
+      })
 
       // Enrich with profile-aware colored segments in the background
       getRouteSegments(result.coordinates, profileKey).then((segments) => {
