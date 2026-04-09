@@ -98,9 +98,11 @@ function midpoint(coords: [number, number][]): [number, number] {
   return coords[Math.floor(coords.length / 2)]
 }
 
+const WALKING_COLOR = '#6b7280' // gray for walk-your-bike segments
+
 // Route segments are colored green (preferred) or orange (other).
-// ALL segments are always shown — preferred in green, non-preferred in orange.
-// The showOtherPaths toggle controls the overlay, not the route itself.
+// Walking segments render as dashed gray lines.
+// ALL segments are always shown — the showOtherPaths toggle controls the overlay, not the route.
 function RouteDisplay({
   route,
   profileKey,
@@ -117,6 +119,22 @@ function RouteDisplay({
     return (
       <>
         {visible.map((seg: RouteSegment, i: number) => {
+          if (seg.isWalking) {
+            return (
+              <Polyline
+                key={i}
+                positions={seg.coordinates}
+                color={WALKING_COLOR}
+                weight={14}
+                opacity={0.85}
+                dashArray="8 8"
+              >
+                <Tooltip sticky direction="top" offset={[0, -6]}>
+                  <span style={{ fontSize: 13 }}>&#x1F6B6; Walk your bike</span>
+                </Tooltip>
+              </Polyline>
+            )
+          }
           const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
           const color = isPreferred ? PREFERRED_COLOR : OTHER_COLOR
           const legendItem = getLegendItem(seg.itemName, profileKey)
@@ -136,9 +154,19 @@ function RouteDisplay({
             </Polyline>
           )
         })}
+        {/* Segment icons: walking icon for walk segments, legend icon for others */}
         {visible
           .filter((seg) => seg.coordinates.length >= 4)
           .map((seg, i) => {
+            if (seg.isWalking) {
+              return (
+                <Marker
+                  key={`icon-${i}`}
+                  position={midpoint(seg.coordinates)}
+                  icon={makeSegmentIcon('\u{1F6B6}')}
+                />
+              )
+            }
             const legendItem = getLegendItem(seg.itemName, profileKey)
             if (!legendItem) return null
             return (

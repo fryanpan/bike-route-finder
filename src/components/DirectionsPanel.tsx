@@ -121,21 +121,21 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
     }
   }, [navigating, currentLocation, step, maneuverCoords, maneuvers])
 
-  // Find current segment for preferred/other indicator
+  // Find current segment for preferred/other/walking indicator
   const currentSegmentInfo = useMemo(() => {
     if (!navigating || !currentLocation || !segments?.length) return null
-    let nearest = { dist: Infinity, itemName: null as string | null }
+    let nearest = { dist: Infinity, itemName: null as string | null, isWalking: false }
     for (const seg of segments) {
       for (const coord of seg.coordinates) {
         const d = distanceM(currentLocation, { lat: coord[0], lng: coord[1] })
         if (d < nearest.dist) {
-          nearest = { dist: d, itemName: seg.itemName }
+          nearest = { dist: d, itemName: seg.itemName, isWalking: seg.isWalking ?? false }
         }
       }
     }
     if (nearest.dist > 100) return null // too far from route
     const isPreferred = nearest.itemName !== null && preferredItemNames.has(nearest.itemName)
-    return { itemName: nearest.itemName, isPreferred }
+    return { itemName: nearest.itemName, isPreferred, isWalking: nearest.isWalking }
   }, [navigating, currentLocation, segments, preferredItemNames])
 
   function startNav() {
@@ -179,6 +179,9 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
             {quality.preferred > 0 && (
               <div className="qb-segment qb-preferred" style={{ flex: quality.preferred }} title={`${Math.round(quality.preferred * 100)}% preferred`} />
             )}
+            {quality.walking > 0 && (
+              <div className="qb-segment qb-walking" style={{ flex: quality.walking }} title={`${Math.round(quality.walking * 100)}% walking`} />
+            )}
             {quality.other > 0 && (
               <div className="qb-segment qb-other" style={{ flex: quality.other }} title={`${Math.round(quality.other * 100)}% other`} />
             )}
@@ -186,6 +189,9 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
           <div className="quality-labels">
             {quality.preferred > 0.05 && (
               <span className="ql-preferred">{Math.round(quality.preferred * 100)}% preferred</span>
+            )}
+            {quality.walking > 0.05 && (
+              <span className="ql-walking">{Math.round(quality.walking * 100)}% walking</span>
             )}
             {quality.other > 0.05 && (
               <span className="ql-other">{Math.round(quality.other * 100)}% other</span>
@@ -198,11 +204,10 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
         <div className="nav-active">
           {/* Current segment indicator */}
           {currentSegmentInfo && (
-            <div className={`nav-segment-badge ${currentSegmentInfo.isPreferred ? 'nav-segment-preferred' : 'nav-segment-other'}`}>
-              {currentSegmentInfo.isPreferred ? '● On preferred path' : '● On other path'}
-              {currentSegmentInfo.itemName === null && (
-                <span className="nav-walk-badge">🚶 Walk your bike</span>
-              )}
+            <div className={`nav-segment-badge ${currentSegmentInfo.isWalking ? 'nav-segment-walking' : currentSegmentInfo.isPreferred ? 'nav-segment-preferred' : 'nav-segment-other'}`}>
+              {currentSegmentInfo.isWalking
+                ? '\u{1F6B6} Walk your bike'
+                : currentSegmentInfo.isPreferred ? '\u25CF On preferred path' : '\u25CF On other path'}
             </div>
           )}
 

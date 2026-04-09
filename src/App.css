@@ -507,7 +507,9 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 5px;
 }
 .ql-preferred { font-size: 11px; color: #047857; font-weight: 600; }
+.ql-walking   { font-size: 11px; color: #6b7280; font-weight: 600; }
 .ql-other     { font-size: 11px; color: #c2410c; font-weight: 600; }
+.qb-walking   { background: #6b7280; }
 
 .start-nav-btn {
   display: block;
@@ -594,13 +596,8 @@ button { font-family: inherit; cursor: pointer; }
   text-align: center;
 }
 .nav-segment-preferred { background: #d1fae5; color: #065f46; }
+.nav-segment-walking   { background: #e5e7eb; color: #374151; }
 .nav-segment-other { background: #fef3c7; color: #92400e; }
-.nav-walk-badge {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: #6b7280;
-}
 
 /* Segment feedback */
 .segment-feedback {
