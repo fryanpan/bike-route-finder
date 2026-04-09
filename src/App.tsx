@@ -11,6 +11,7 @@ import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import FeedbackWidget from './components/FeedbackWidget'
 import { getRoute, getRouteSegments, DEFAULT_PROFILES } from './services/routing'
+import { logRoute } from './services/routeLog'
 import { reverseGeocode } from './services/geocoding'
 import {
   getDefaultPreferredItems,
@@ -19,6 +20,7 @@ import {
 import { CITY_PRESETS } from './services/audit'
 import { fetchRules } from './services/rules'
 import type { ClassificationRule } from './services/rules'
+import RouteList from './components/RouteList'
 import type { Place, Route, ProfileMap } from './utils/types'
 import { Sentry } from './sentry'
 
@@ -145,9 +147,13 @@ export default function App() {
 
   const { location: currentLocation } = useGeolocation()
 
-  const [route, setRoute]         = useState<Route | null>(null)
+  const [routes, setRoutes]                   = useState<Route[]>([])
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
+
+  // Derived: the currently selected route (or null if none)
+  const route = routes[selectedRouteIndex] ?? null
 
   const overlayEnabled = true
   const [overlayStatus, setOverlayStatus]   = useState('idle')
@@ -235,18 +241,37 @@ export default function App() {
 
     setIsLoading(true)
     setError(null)
-    setRoute(null)
+    setRoutes([])
+    setSelectedRouteIndex(0)
 
     try {
       const costingOptions = getCostingFromPreferences(preferredItemNames, profileKey, profile)
-      const result = await getRoute(start, end, { ...profile, costingOptions }, wps)
-      setRoute(result)
+      const results = await getRoute(start, end, { ...profile, costingOptions }, wps, 2)
+      setRoutes(results)
 
-      // Enrich with profile-aware colored segments in the background
-      getRouteSegments(result.coordinates, profileKey).then((segments) => {
-        if (segments) {
-          setRoute((r) => (r ? { ...r, segments } : r))
-        }
+      // Fire-and-forget route log for each route
+      for (const result of results) {
+        logRoute({
+          startLat: start.lat,
+          startLng: start.lng,
+          startLabel: start.label,
+          endLat: end.lat,
+          endLng: end.lng,
+          endLabel: end.label,
+          travelMode: profileKey,
+          engine: 'valhalla',
+          distanceM: Math.round(result.summary.distance * 1000),
+          durationS: Math.round(result.summary.duration),
+        })
+      }
+
+      // Enrich each route with profile-aware colored segments in the background
+      results.forEach((result, i) => {
+        getRouteSegments(result.coordinates, profileKey).then((segments) => {
+          if (segments) {
+            setRoutes((prev) => prev.map((r, j) => j === i ? { ...r, segments } : r))
+          }
+        })
       })
     } catch (e) {
       const msg = (e as Error).message ?? 'Could not find a route'
@@ -318,7 +343,8 @@ export default function App() {
 
   // --- Back to search ---
   function backToSearch() {
-    setRoute(null)
+    setRoutes([])
+    setSelectedRouteIndex(0)
     setStartPoint(null)
     setEndPoint(null)
     setSelectedPlace(null)
@@ -404,6 +430,9 @@ export default function App() {
             startPoint={uiState === 'routing' ? startPoint : null}
             endPoint={uiState === 'routing' ? endPoint : null}
             route={route}
+            routes={routes}
+            selectedRouteIndex={selectedRouteIndex}
+            onSelectRoute={setSelectedRouteIndex}
             waypoints={waypoints}
             onRemoveWaypoint={handleRemoveWaypoint}
             overlayEnabled={overlayEnabled}
@@ -491,8 +520,8 @@ export default function App() {
                 endPoint={endPoint}
                 onStartSelect={handleStartSelect}
                 onEndSelect={handleEndSelect}
-                onStartClear={() => { setStartPoint(null); setRoute(null) }}
-                onEndClear={() => { setEndPoint(null); setRoute(null) }}
+                onStartClear={() => { setStartPoint(null); setRoutes([]) }}
+                onEndClear={() => { setEndPoint(null); setRoutes([]) }}
 startQuickOptions={startQuickOptions}
                 endQuickOptions={endQuickOptions}
               />
@@ -509,6 +538,12 @@ startQuickOptions={startQuickOptions}
 
             {route && !isLoading && (
               <div className="floating-card floating-route-summary">
+                <RouteList
+                  routes={routes}
+                  selectedIndex={selectedRouteIndex}
+                  onSelect={setSelectedRouteIndex}
+                  preferredItemNames={preferredItemNames}
+                />
                 <DirectionsPanel
                   route={route}
                   onClose={backToSearch}
