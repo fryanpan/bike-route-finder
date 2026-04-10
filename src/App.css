@@ -315,15 +315,11 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Travel mode selector map overlay ─────────────────── */
 .map-travel-mode {
   position: absolute;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 450;
+  top: 64px;
+  right: 12px;
+  z-index: 460;
   pointer-events: none;
 }
-/* On mobile, lift above bottom floating cards */
-.ui-place-detail .map-travel-mode { bottom: 160px; }
-.ui-routing .map-travel-mode { bottom: 220px; }
 .map-travel-mode .profile-selector {
   pointer-events: auto;
   padding: 8px;
@@ -331,6 +327,20 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 16px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.15);
 }
+
+/* ── Map legend wrap ──────────────────────────────────── */
+.map-legend-wrap {
+  position: absolute;
+  top: 120px;
+  right: 10px;
+  z-index: 450;
+  pointer-events: none;
+}
+.map-legend-wrap > * {
+  pointer-events: auto;
+}
+/* Hide legend on mobile during routing to avoid overlap with bottom panel */
+.ui-routing .map-legend-wrap { display: none; }
 
 /* ── Profile selector (compact horizontal chips) ────── */
 .profile-selector {
@@ -717,14 +727,23 @@ button { font-family: inherit; cursor: pointer; }
 }
 /* When routing, push map-top-right controls below the routing header */
 .ui-routing .map-top-right { top: 140px; }
-.ui-routing .map-travel-mode { top: 120px; }
 @media (min-width: 768px) {
   .map-top-right {
     top: 12px;
   }
   .ui-routing .map-top-right { top: 12px; right: 10px; }
-  .map-travel-mode { top: 12px; }
-  .ui-routing .map-travel-mode { top: 12px; }
+  .map-travel-mode { top: 12px; right: 12px; }
+  .map-legend-wrap { top: 64px; }
+  .ui-routing .map-legend-wrap { display: flex; }
+}
+/* Very small screens: constrain chip overflow */
+@media (max-width: 374px) {
+  .map-travel-mode .profile-chips {
+    gap: 4px;
+  }
+  .map-travel-mode .profile-chip {
+    padding: 6px 10px;
+  }
 }
 
 /* ── Map legend ─────────────────────────────────────── */
