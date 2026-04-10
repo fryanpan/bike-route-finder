@@ -142,6 +142,38 @@ describe('routeOnGraph', () => {
     expect(result).toBeNull()
   })
 
+  test('tracks walking distance and percentage', () => {
+    // Route through a cycleway then a footway (walking)
+    const mixedWays: OsmWay[] = [
+      {
+        osmId: 30,
+        itemName: null,
+        tags: { highway: 'cycleway' },
+        coordinates: [[52.5000, 13.4000], [52.5010, 13.4000]],
+      },
+      {
+        osmId: 31,
+        itemName: null,
+        tags: { highway: 'footway' }, // walking-only (no bicycle=yes)
+        coordinates: [[52.5010, 13.4000], [52.5020, 13.4000]],
+      },
+    ]
+    const preferred = new Set(['Bike path'])
+    const graph = buildRoutingGraph(mixedWays, 'toddler', preferred)
+    const result = routeOnGraph(
+      graph, 52.5000, 13.4000, 52.5020, 13.4000,
+      'toddler', preferred,
+    )
+    expect(result).not.toBeNull()
+    expect(result!.walkingDistanceKm).toBeGreaterThan(0)
+    expect(result!.walkingPct).toBeGreaterThan(0)
+    expect(result!.walkingPct).toBeLessThan(1) // not 100% walking
+
+    // Check that walking segments are marked
+    const walkingSegs = result!.segments.filter(s => s.isWalking)
+    expect(walkingSegs.length).toBeGreaterThan(0)
+  })
+
   test('prefers lower-cost edges', () => {
     // Two parallel paths: one cycleway (preferred, cost 1x), one residential (cost 3x)
     const twoPath: OsmWay[] = [

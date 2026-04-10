@@ -234,6 +234,8 @@ export interface ClientRouteResult {
   coordinates: [number, number][]
   segments: RouteSegment[]
   distanceKm: number
+  walkingDistanceKm: number
+  walkingPct: number
   durationS: number
   graphNodes: number
   graphEdges: number
@@ -281,6 +283,7 @@ export function routeOnGraph(
 
   // Build segments by walking the path edges
   let totalDistance = 0
+  let walkingDistance = 0
   let totalTime = 0
   const classified: Array<{ itemName: string | null; coord: [number, number]; isWalking?: boolean }> = []
 
@@ -296,6 +299,7 @@ export function routeOnGraph(
     if (link) {
       totalDistance += link.data.distance
       totalTime += link.data.cost  // cost IS time in seconds
+      if (link.data.isWalking) walkingDistance += link.data.distance
 
       const itemName = classifyOsmTagsToItem(link.data.wayTags, profileKey, regionRules)
       classified.push({
@@ -308,29 +312,29 @@ export function routeOnGraph(
     }
   }
 
-  // Build segments (group consecutive same-classification points)
+  // Build walking-aware segments: walking edges get a special itemName marker
+  // so buildSegments groups them separately, then we restore the real itemName.
+  const WALK_MARKER = '__walking__'
   const segmentInput = classified.map((c) => ({
-    itemName: c.itemName,
+    itemName: c.isWalking ? WALK_MARKER : c.itemName,
     coord: c.coord,
   }))
-  const segments = buildSegments(segmentInput)
+  const rawSegments = buildSegments(segmentInput)
 
-  // Mark walking segments
-  let classifiedIdx = 0
-  for (const seg of segments) {
-    // Check if any of the classified points in this segment are walking
-    let hasWalking = false
-    for (let j = 0; j < seg.coordinates.length && classifiedIdx < classified.length; j++) {
-      if (classified[classifiedIdx]?.isWalking) hasWalking = true
-      classifiedIdx++
+  // Post-process: restore real itemName and set isWalking flag
+  const segments: RouteSegment[] = rawSegments.map((seg) => {
+    if (seg.itemName === WALK_MARKER) {
+      return { ...seg, itemName: null, isWalking: true }
     }
-    if (hasWalking) seg.isWalking = true
-  }
+    return seg
+  })
 
   return {
     coordinates,
     segments,
     distanceKm: totalDistance / 1000,
+    walkingDistanceKm: walkingDistance / 1000,
+    walkingPct: totalDistance > 0 ? walkingDistance / totalDistance : 0,
     durationS: totalTime,
     graphNodes: graph.getNodeCount(),
     graphEdges: graph.getLinkCount(),
