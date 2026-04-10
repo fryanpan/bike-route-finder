@@ -225,6 +225,8 @@ async function brouterRoute(startLat: number, startLng: number, endLat: number, 
 
 const HOME = { lat: 52.5016, lng: 13.4103, label: 'Home' }
 const SCHOOL = { lat: 52.5105, lng: 13.4247, label: 'School' }
+const BRANDENBURGER_TOR = { lat: 52.5163, lng: 13.3777, label: 'Brandenburger Tor' }
+const THAIPARK = { lat: 52.4921, lng: 13.3147, label: 'Thaipark' }
 
 const DESTINATIONS = [
   { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' },
@@ -235,6 +237,14 @@ const DESTINATIONS = [
   { lat: 52.4910, lng: 13.4220, label: 'Nonne und Zwerg' },
   { lat: 52.4750, lng: 13.4340, label: 'Stadtbad Neukoelln' },
   { lat: 52.5410, lng: 13.5790, label: 'Garten der Welt' },
+  { lat: 52.5300, lng: 13.4519, label: 'SSE Schwimmhalle' },
+  { lat: 52.4898, lng: 13.3904, label: 'Ararat Bergmannstr' },
+]
+
+// Additional specific route pairs beyond Home/School × Destinations
+const EXTRA_ROUTES: Array<{ origin: typeof HOME; dest: typeof HOME }> = [
+  { origin: BRANDENBURGER_TOR, dest: { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' } },
+  { origin: THAIPARK, dest: { lat: 52.4867, lng: 13.3546, label: 'Tranxx' } },
 ]
 
 // ── Main ─────────────────────────────────────────────────────────────────
@@ -288,6 +298,34 @@ async function main() {
 
       results.push({ origin: origin.label, dest: dest.label, client, valhalla, brouter })
     }
+  }
+
+  // Run extra specific route pairs
+  for (const { origin, dest } of EXTRA_ROUTES) {
+    console.log(`${origin.label} -> ${dest.label}`)
+
+    const t1 = performance.now()
+    const clientResult = routeOnGraph(graph, origin.lat, origin.lng, dest.lat, dest.lng, PROFILE_KEY, PREFERRED)
+    const routeMs = performance.now() - t1
+    let client: RouteResult | null = null
+    if (clientResult) {
+      console.log(`    Client route: ${routeMs.toFixed(0)}ms`)
+      client = {
+        engine: 'client',
+        distance: clientResult.distanceKm,
+        duration: clientResult.durationS / 60,
+        preferredPct: scoreRouteCoords(clientResult.coordinates, allWays).preferredPct,
+        walkingPct: clientResult.walkingPct,
+        coordinates: clientResult.coordinates,
+      }
+    }
+
+    const valhalla = await valhallaRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
+    await new Promise((r) => setTimeout(r, 1200))
+    const brouter = await brouterRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
+    await new Promise((r) => setTimeout(r, 1200))
+
+    results.push({ origin: origin.label, dest: dest.label, client, valhalla, brouter })
   }
 
   // Print results
