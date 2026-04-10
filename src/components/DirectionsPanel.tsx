@@ -165,7 +165,7 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
   return (
     <div className="directions-panel">
       {/* Summary row — hidden in compact mode (info already in route card) */}
-      {!(compact && !navigating) && (
+      {(
         <div className="route-summary">
           <div className="summary-stats">
             <span className="summary-distance">{formatDistance(summary.distance)}</span>
@@ -177,7 +177,7 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
       )}
 
       {/* Route quality bar — hidden in compact mode (already shown in route cards) */}
-      {quality && !(compact && !navigating) && (
+      {quality && (
         <div className="quality-bar-wrap">
           <div className="quality-bar">
             {quality.preferred > 0 && (
@@ -191,7 +191,7 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
             )}
           </div>
           {/* Quality labels — hidden in compact non-navigating mode */}
-          {!(compact && !navigating) && (
+          {(
             <div className="quality-labels">
               {quality.preferred > 0.05 && (
                 <span className="ql-preferred">{Math.round(quality.preferred * 100)}% preferred</span>
