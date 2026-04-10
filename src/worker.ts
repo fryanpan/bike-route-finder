@@ -23,12 +23,22 @@ interface KVNamespace {
   put(key: string, value: string): Promise<void>
 }
 
+interface D1Database {
+  prepare(query: string): D1PreparedStatement
+}
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement
+  run(): Promise<{ success: boolean }>
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
+}
+
 type Env = {
   LINEAR_API_KEY?: string
   LINEAR_TEAM_ID?: string
   LINEAR_PROJECT_ID?: string
   LINEAR_ASSIGNEE_ID?: string
   CLASSIFICATION_RULES: KVNamespace
+  ROUTE_LOGS: D1Database
   ASSETS: { fetch: (request: Request) => Promise<Response> }
 }
 
@@ -205,6 +215,35 @@ export default {
       }
 
       return Response.json({ error: 'Method not allowed' }, { status: 405 })
+    }
+
+    // ── Route logging (D1) ───────────────────────────────────────────
+    if (path === '/api/route-log' && request.method === 'POST') {
+      try {
+        const body = await request.json() as Record<string, unknown>
+        const id = (body.id as string) ?? crypto.randomUUID()
+        await env.ROUTE_LOGS.prepare(
+          `INSERT INTO route_logs (id, timestamp, start_lat, start_lng, start_label, end_lat, end_lng, end_label, travel_mode, engine, distance_m, duration_s, preferred_pct)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          id, body.timestamp ?? new Date().toISOString(),
+          body.startLat, body.startLng, body.startLabel ?? null,
+          body.endLat, body.endLng, body.endLabel ?? null,
+          body.travelMode, body.engine,
+          body.distanceM ?? null, body.durationS ?? null, body.preferredPct ?? null,
+        ).run()
+        return Response.json({ ok: true, id })
+      } catch (err) {
+        return Response.json({ error: String(err) }, { status: 500 })
+      }
+    }
+
+    if (path === '/api/route-logs' && request.method === 'GET') {
+      const limit = parseInt(url.searchParams.get('limit') ?? '50')
+      const result = await env.ROUTE_LOGS.prepare(
+        'SELECT * FROM route_logs ORDER BY timestamp DESC LIMIT ?'
+      ).bind(limit).all()
+      return Response.json(result.results)
     }
 
     // ── All other paths: serve static assets via [assets] binding ─────

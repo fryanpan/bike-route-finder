@@ -248,7 +248,7 @@ export default function App() {
 
     try {
       const costingOptions = getCostingFromPreferences(preferredItemNames, profileKey, profile)
-      const valhallaResults = await getRoute(start, end, { ...profile, costingOptions }, wps, 2)
+      const valhallaResults = await getRoute(start, end, { ...profile, costingOptions }, wps, 0)
       // Tag Valhalla routes with engine
       const taggedValhalla = valhallaResults.map((r) => ({ ...r, engine: 'valhalla' }))
       setRoutes(taggedValhalla)
@@ -296,8 +296,9 @@ export default function App() {
         setSelectedRouteIndex(0)
       })
 
-      // Fetch BRouter routes in parallel (non-blocking — appended when ready)
-      getBRouterRoutes(start, end, profileKey).then((brouterResults) => {
+      // BRouter comparison routes — disabled in single-route mode
+      // TODO: re-enable when routing mode toggle is added to settings
+      false && getBRouterRoutes(start, end, profileKey).then((brouterResults) => {
         // Log BRouter routes
         for (const result of brouterResults) {
           logRoute({
