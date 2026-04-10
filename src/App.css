@@ -1565,7 +1565,63 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(239,246,255,.98);
 }
 
+/* ── Download banner ──────────────────────────────────── */
+.download-banner {
+  position: fixed;
+  bottom: 80px;
+  left: 12px;
+  right: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.download-banner-text { font-size: 14px; font-weight: 500; color: #111827; }
+.download-banner-progress {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.download-banner-fill {
+  height: 100%;
+  background: #22c55e;
+  border-radius: 3px;
+  transition: width .3s;
+}
+.download-banner-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.download-banner-btn {
+  padding: 6px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background .15s;
+}
+.download-banner-btn:hover { background: #1d4ed8; }
+.download-banner-dismiss {
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  transition: all .15s;
+}
+.download-banner-dismiss:hover { border-color: #9ca3af; color: #374151; }
+
 /* ── Desktop layout ────────────────────────────────────── */
 @media (min-width: 768px) {
   .maneuvers-list { max-height: 320px; overflow-y: auto; }
+  .download-banner { left: auto; right: 12px; width: 360px; }
 }

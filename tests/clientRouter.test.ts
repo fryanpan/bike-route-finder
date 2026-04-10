@@ -72,7 +72,7 @@ describe('buildRoutingGraph', () => {
     expect(graph.getLinkCount()).toBe(2)
   })
 
-  test('walking-only edges get higher cost', () => {
+  test('walking-only edges use walking speed and are flagged', () => {
     const walkWays: OsmWay[] = [{
       osmId: 5,
       itemName: null,
@@ -83,9 +83,9 @@ describe('buildRoutingGraph', () => {
     const link = graph.getLink('52.50000,13.40000', '52.50100,13.40000')
     expect(link).toBeTruthy()
     expect(link!.data.isWalking).toBe(true)
-    // Cost = time = distance / walking_speed. Walking is slower than biking,
-    // so cost (time) should be higher than for a bike edge of the same distance.
-    const walkingSpeed = 4 / 3.6 // toddler walk speed (4 km/h)
+    // Cost = time = distance / walking_speed. Footways at 5 km/h are slightly
+    // cheaper than unclassified roads at 4 km/h (car-free advantage).
+    const walkingSpeed = 5 / 3.6 // toddler walk speed (5 km/h)
     const expectedCost = link!.data.distance / walkingSpeed
     expect(link!.data.cost).toBeCloseTo(expectedCost, 0)
   })

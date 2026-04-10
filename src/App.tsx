@@ -680,26 +680,28 @@ export default function App() {
 
         {/* Tile cache download banner */}
         {tileCacheBanner?.show && (
-          <div className="floating-card tile-cache-banner">
-            <p>Download cycling data for this area? (~30 seconds)</p>
-            <button className="tile-cache-btn" onClick={handleDownloadTiles}>
-              Download
-            </button>
-            <button
-              className="tile-cache-dismiss"
-              onClick={() => setTileCacheBanner(null)}
-            >
-              Dismiss
-            </button>
+          <div className="download-banner">
+            <p className="download-banner-text">Download cycling data for {tileCacheBanner.regionName}? (~30 seconds)</p>
+            <div className="download-banner-actions">
+              <button
+                className="download-banner-dismiss"
+                onClick={() => setTileCacheBanner(null)}
+              >
+                Dismiss
+              </button>
+              <button className="download-banner-btn" onClick={handleDownloadTiles}>
+                Download
+              </button>
+            </div>
           </div>
         )}
 
         {/* Tile cache download progress */}
         {tileCacheProgress !== null && (
-          <div className="floating-card tile-cache-progress">
-            <p>Downloading cycling data... {tileCacheProgress}%</p>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${tileCacheProgress}%` }} />
+          <div className="download-banner">
+            <p className="download-banner-text">Downloading cycling data... {tileCacheProgress}%</p>
+            <div className="download-banner-progress">
+              <div className="download-banner-fill" style={{ width: `${tileCacheProgress}%` }} />
             </div>
           </div>
         )}
