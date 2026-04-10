@@ -399,16 +399,25 @@ export default function App() {
     if (newStart && newEnd) void computeRoute(newStart, newEnd, selectedProfile, [...waypoints].reverse())
   }
 
+  const routeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function debouncedComputeRoute(wps: Array<{ lat: number; lng: number }>) {
+    if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current)
+    routeDebounceRef.current = setTimeout(() => {
+      if (startPoint && endPoint) computeRoute(startPoint, endPoint, selectedProfile, wps)
+    }, 800)
+  }
+
   function handleRemoveWaypoint(index: number) {
     const newWps = waypoints.filter((_, i) => i !== index)
     setWaypoints(newWps)
-    if (startPoint && endPoint) computeRoute(startPoint, endPoint, selectedProfile, newWps)
+    debouncedComputeRoute(newWps)
   }
 
   function handleAddWaypoint(lat: number, lng: number) {
     const newWps = [...waypoints, { lat, lng }]
     setWaypoints(newWps)
-    if (startPoint && endPoint) computeRoute(startPoint, endPoint, selectedProfile, newWps)
+    debouncedComputeRoute(newWps)
   }
 
   // --- Back to search ---
