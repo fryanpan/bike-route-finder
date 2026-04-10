@@ -174,15 +174,21 @@ export async function getRoute(
     ...(requestAlternates ? { alternates } : {}),
   }
 
-  const response = await fetch(`${API_BASE}/valhalla/route`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let response: Response | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(`${API_BASE}/valhalla/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (response.status !== 429) break
+    // Rate limited — wait and retry
+    await new Promise((r) => setTimeout(r, (attempt + 1) * 2000))
+  }
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({})) as { error_message?: string; error?: string }
-    throw new Error(err.error_message ?? err.error ?? `Routing failed (${response.status})`)
+  if (!response || !response.ok) {
+    const err = response ? await response.json().catch(() => ({})) as { error_message?: string; error?: string } : { error: 'Network error' }
+    throw new Error(err.error_message ?? err.error ?? `Routing failed (${response?.status})`)
   }
 
   const data = await response.json() as {
