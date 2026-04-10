@@ -80,7 +80,7 @@ describe('buildRoutingGraph', () => {
       coordinates: [[52.5, 13.4], [52.501, 13.4]],
     }]
     const graph = buildRoutingGraph(walkWays, 'toddler', new Set())
-    const link = graph.getLink('52.500000,13.400000', '52.501000,13.400000')
+    const link = graph.getLink('52.50000,13.40000', '52.50100,13.40000')
     expect(link).toBeTruthy()
     expect(link!.data.isWalking).toBe(true)
     // Cost = time = distance / walking_speed. Walking is much slower than biking,

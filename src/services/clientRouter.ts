@@ -55,9 +55,12 @@ interface EdgeData {
   isWalking: boolean
 }
 
-/** Canonical node ID from a coordinate pair. */
+/** Canonical node ID from a coordinate pair.
+ * Uses 5 decimal places (~1.1m precision) to snap nearby endpoints together,
+ * improving graph connectivity near intersections where OSM ways don't share
+ * exact coordinates at 6dp. */
 function coordId(lat: number, lng: number): string {
-  return `${lat.toFixed(6)},${lng.toFixed(6)}`
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`
 }
 
 // ── Speed-based costing ───────────────────────────────────────────────────
@@ -188,8 +191,9 @@ export function buildRoutingGraph(
 // ── Nearest node finder ────────────────────────────────────────────────────
 
 /**
- * Find the graph node nearest to a given lat/lng by iterating all nodes.
- * Returns the node ID or null if the graph is empty.
+ * Find the graph node nearest to a given lat/lng that has at least one link.
+ * Skips isolated nodes (degree 0) which can't participate in routing.
+ * Falls back to any nearest node if no connected nodes exist.
  */
 function findNearestNode(
   graph: Graph<NodeData, EdgeData>,
@@ -198,16 +202,30 @@ function findNearestNode(
 ): string | null {
   let bestId: string | null = null
   let bestDist = Infinity
+  let fallbackId: string | null = null
+  let fallbackDist = Infinity
 
   graph.forEachNode((node: Node<NodeData>) => {
     const d = haversineM(lat, lng, node.data.lat, node.data.lng)
-    if (d < bestDist) {
-      bestDist = d
-      bestId = node.id as string
+
+    // ngraph stores links as a linked list on node.links; null means no links
+    const links = graph.getLinks(node.id)
+    const connected = links !== null
+
+    if (connected) {
+      if (d < bestDist) {
+        bestDist = d
+        bestId = node.id as string
+      }
+    } else {
+      if (d < fallbackDist) {
+        fallbackDist = d
+        fallbackId = node.id as string
+      }
     }
   })
 
-  return bestId
+  return bestId ?? fallbackId
 }
 
 // ── Route on graph ─────────────────────────────────────────────────────────
