@@ -176,8 +176,8 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
         </div>
       )}
 
-      {/* Route quality bar */}
-      {quality && (
+      {/* Route quality bar — hidden in compact mode (already shown in route cards) */}
+      {quality && !(compact && !navigating) && (
         <div className="quality-bar-wrap">
           <div className="quality-bar">
             {quality.preferred > 0 && (

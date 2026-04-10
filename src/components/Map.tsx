@@ -38,21 +38,20 @@ const waypointIcon = L.divIcon({
 
 // Short labels for segment types — shown directly on the map instead of emoji icons
 const SHORT_LABELS: Record<string, string> = {
-  'Car-free path / Radweg': 'Radweg',
+  'Bike path': 'Radweg',
   'Fahrradstrasse': 'Fahrradstr.',
-  'Shared footway (park path)': 'Park path',
+  'Shared foot path': 'Park path',
   'Elevated sidewalk path': 'Sidewalk path',
   'Living street': 'Living st.',
   'Painted bike lane': 'Bike lane',
   'Shared bus lane': 'Bus lane',
-  'Residential & local road': 'Local road',
-  'Rough road (e.g. cobblestone)': 'Rough',
+  'Residential/local road': 'Local road',
+  'Rough surface': 'Rough',
 }
 
-function makeTextLabel(text: string, isPreferred: boolean): L.DivIcon {
-  const bg = isPreferred ? '#047857' : '#92400e'
+function makeTextLabel(text: string): L.DivIcon {
   return L.divIcon({
-    html: `<div class="seg-label" style="background:${bg}">${text}</div>`,
+    html: `<div class="seg-label">${text}</div>`,
     className: '',
     iconSize: [0, 0],
     iconAnchor: [0, 10],
@@ -219,18 +218,17 @@ function RouteDisplay({
                 <Marker
                   key={`label-${i}`}
                   position={midpoint(seg.coordinates)}
-                  icon={makeTextLabel('Walk', false)}
+                  icon={makeTextLabel('Walk')}
                 />
               )
             }
             const label = SHORT_LABELS[seg.itemName ?? '']
             if (!label) return null
-            const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
             return (
               <Marker
                 key={`label-${i}`}
                 position={midpoint(seg.coordinates)}
-                icon={makeTextLabel(label, isPreferred)}
+                icon={makeTextLabel(label)}
               />
             )
           })}
