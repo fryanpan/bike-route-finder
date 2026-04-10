@@ -102,6 +102,47 @@ export function computeRouteQuality(
   return { preferred: preferred / total, other: other / total, walking: walking / total }
 }
 
+// ── Gap healing ─────────────────────────────────────────────────────────────
+
+const MAX_GAP_COORDS = 5 // ~30m at typical OSM resolution
+
+/**
+ * Heal short non-preferred gaps between preferred segments.
+ * At intersections, OSM often has a few meters of unclassified crossing
+ * between two preferred paths. These show as orange slivers and drag down
+ * quality metrics. If a non-preferred segment is ≤ MAX_GAP_COORDS coordinates
+ * with preferred segments on both sides, reclassify it as the surrounding type.
+ */
+export function healSegmentGaps(
+  segments: RouteSegment[],
+  preferredItemNames: Set<string>,
+): RouteSegment[] {
+  if (segments.length < 3) return segments
+
+  const result = [...segments]
+  for (let i = 1; i < result.length - 1; i++) {
+    const seg = result[i]
+    if (seg.isWalking) continue // don't heal walking segments
+    const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
+    if (isPreferred) continue // already preferred
+
+    // Check if this short non-preferred gap is between preferred segments
+    if (seg.coordinates.length > MAX_GAP_COORDS) continue
+
+    const prev = result[i - 1]
+    const next = result[i + 1]
+    const prevPreferred = prev.itemName !== null && preferredItemNames.has(prev.itemName) && !prev.isWalking
+    const nextPreferred = next.itemName !== null && preferredItemNames.has(next.itemName) && !next.isWalking
+
+    if (prevPreferred && nextPreferred) {
+      // Heal: adopt the previous segment's classification
+      result[i] = { ...seg, itemName: prev.itemName }
+    }
+  }
+
+  return result
+}
+
 // ── Preferred item helpers ──────────────────────────────────────────────────
 
 /**

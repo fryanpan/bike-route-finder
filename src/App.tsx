@@ -18,6 +18,7 @@ import { injectCachedTile, latLngToTile, tileKey } from './services/overpass'
 import { logRoute } from './services/routeLog'
 import { reverseGeocode } from './services/geocoding'
 import {
+  healSegmentGaps,
   getDefaultPreferredItems,
   getCostingFromPreferences,
   computeRouteQuality,
@@ -386,7 +387,8 @@ export default function App() {
       // Enrich each route with segments, then reorder: "best" route first
       // (highest preferred %) as long as it's within 20% of fastest time.
       Promise.all(initialRoutes.map(async (result) => {
-        const segments = await scoreRoute(result.coordinates, profileKey, regionRules)
+        const rawSegments = await scoreRoute(result.coordinates, profileKey, regionRules)
+        const segments = healSegmentGaps(rawSegments, preferredItemNames)
         return segments.length ? { ...result, segments } : result
       })).then((scored) => {
         const fastest = Math.min(...scored.map((r) => r.summary.duration))
@@ -432,7 +434,8 @@ export default function App() {
         // Score BRouter routes with the unified scorer too
         for (const result of brouterResults) {
           const coords = result.coordinates
-          scoreRoute(coords, profileKey, regionRules).then((segments) => {
+          scoreRoute(coords, profileKey, regionRules).then((rawSegs) => {
+            const segments = healSegmentGaps(rawSegs, preferredItemNames)
             if (segments.length) {
               setRoutes((prev) => prev.map((r) => r.coordinates === coords ? { ...r, segments } : r))
             }

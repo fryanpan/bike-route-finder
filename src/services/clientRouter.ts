@@ -16,7 +16,7 @@ import {
   tileKey,
   classifyOsmTagsToItem,
 } from './overpass'
-import { buildSegments } from '../utils/classify'
+import { buildSegments, healSegmentGaps } from '../utils/classify'
 import type { OsmWay, Route, RouteSegment } from '../utils/types'
 import type { ClassificationRule } from './rules'
 
@@ -357,13 +357,14 @@ export function routeOnGraph(
   }))
   const rawSegments = buildSegments(segmentInput)
 
-  // Post-process: restore real itemName and set isWalking flag
-  const segments: RouteSegment[] = rawSegments.map((seg) => {
+  // Post-process: restore real itemName, set isWalking flag, heal intersection gaps
+  const restoredSegments: RouteSegment[] = rawSegments.map((seg) => {
     if (seg.itemName === WALK_MARKER) {
       return { ...seg, itemName: null, isWalking: true }
     }
     return seg
   })
+  const segments = healSegmentGaps(restoredSegments, preferredItemNames)
 
   return {
     coordinates,
