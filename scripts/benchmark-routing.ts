@@ -71,7 +71,7 @@ async function fetchTile(row: number, col: number): Promise<OsmWay[]> {
 }
 
 async function fetchBerlinTiles(): Promise<OsmWay[]> {
-  const south = 52.34, north = 52.68, west = 13.08, east = 13.76
+  const south = 52.34, north = 52.68, west = 13.08, east = 13.80
   const minRow = Math.floor(south / TILE_DEGREES)
   const maxRow = Math.floor(north / TILE_DEGREES)
   const minCol = Math.floor(west / TILE_DEGREES)
@@ -292,9 +292,9 @@ async function main() {
       }
 
       const valhalla = await valhallaRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
-      await new Promise((r) => setTimeout(r, 1200)) // rate limit
+      await new Promise((r) => setTimeout(r, 2000)) // rate limit
       const brouter = await brouterRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
-      await new Promise((r) => setTimeout(r, 1200))
+      await new Promise((r) => setTimeout(r, 2000))
 
       results.push({ origin: origin.label, dest: dest.label, client, valhalla, brouter })
     }
@@ -321,9 +321,9 @@ async function main() {
     }
 
     const valhalla = await valhallaRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
-    await new Promise((r) => setTimeout(r, 1200))
+    await new Promise((r) => setTimeout(r, 2000))
     const brouter = await brouterRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays)
-    await new Promise((r) => setTimeout(r, 1200))
+    await new Promise((r) => setTimeout(r, 2000))
 
     results.push({ origin: origin.label, dest: dest.label, client, valhalla, brouter })
   }
