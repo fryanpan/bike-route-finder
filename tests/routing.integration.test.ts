@@ -259,7 +259,7 @@ describe('routing integration — Dresdener Str 112 → Le Brot (training mode)'
     expect(classifyEdgeToItem(buslane, 'trailer')).toBe('Shared bus lane')
     expect(classifyEdgeToItem(buslane, 'toddler')).toBe('Shared bus lane')
     // Whether it's "preferred" depends on the user's preferredItemNames, not the classification
-    const toddlerPreferred = new Set(['Car-free path / Radweg', 'Fahrradstrasse'])
+    const toddlerPreferred = new Set(['Bike path', 'Fahrradstrasse'])
     const trainingPreferred = new Set(['Shared bus lane'])
     expect(toddlerPreferred.has('Shared bus lane')).toBe(false)
     expect(trainingPreferred.has('Shared bus lane')).toBe(true)
@@ -308,16 +308,16 @@ describe('classifyEdgeToItem — uses Valhalla string API values (not legacy num
    * documentation. These tests confirm our classifier handles the actual API format.
    */
 
-  it('car-free cycleway ("use"="cycleway") → Car-free path / Radweg', () => {
-    expect(classifyEdgeToItem({ use: 'cycleway' }, 'toddler')).toBe('Car-free path / Radweg')
+  it('car-free cycleway ("use"="cycleway") → Bike path', () => {
+    expect(classifyEdgeToItem({ use: 'cycleway' }, 'toddler')).toBe('Bike path')
   })
 
-  it('off-road path ("use"="path") → Car-free path / Radweg', () => {
-    expect(classifyEdgeToItem({ use: 'path' }, 'toddler')).toBe('Car-free path / Radweg')
+  it('off-road path ("use"="path") → Bike path', () => {
+    expect(classifyEdgeToItem({ use: 'path' }, 'toddler')).toBe('Bike path')
   })
 
-  it('park footway ("use"="footway") → Shared footway (park path)', () => {
-    expect(classifyEdgeToItem({ use: 'footway' }, 'toddler')).toBe('Shared footway (park path)')
+  it('park footway ("use"="footway") → Shared foot path', () => {
+    expect(classifyEdgeToItem({ use: 'footway' }, 'toddler')).toBe('Shared foot path')
   })
 
   it('separated bike track ("cycle_lane"="separated") → Elevated sidewalk path for toddler', () => {
@@ -332,8 +332,8 @@ describe('classifyEdgeToItem — uses Valhalla string API values (not legacy num
     expect(classifyEdgeToItem({ cycle_lane: 'share_busway' }, 'training')).toBe('Shared bus lane')
   })
 
-  it('residential road ("road_class"="residential") → Residential & local road', () => {
-    expect(classifyEdgeToItem({ road_class: 'residential' }, 'toddler')).toBe('Residential & local road')
+  it('residential road ("road_class"="residential") → Residential/local road', () => {
+    expect(classifyEdgeToItem({ road_class: 'residential' }, 'toddler')).toBe('Residential/local road')
   })
 
   it('secondary road ("road_class"="secondary") → null (arterial, not in legend)', () => {

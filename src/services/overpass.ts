@@ -174,8 +174,8 @@ export function classifyOsmTagsToItem(
   const bicycleRoad = tags.bicycle_road === 'yes'
 
   if (bicycleRoad) return 'Fahrradstrasse'
-  if (highway === 'cycleway' || highway === 'path' || highway === 'track') return 'Car-free path / Radweg'
-  if (highway === 'footway') return 'Shared footway (park path)'
+  if (highway === 'cycleway' || highway === 'path' || highway === 'track') return 'Bike path'
+  if (highway === 'footway') return 'Shared foot path'
 
   // Physically separated track (cycleway=track or physical separation on a lane)
   const cRight = tags['cycleway:right'] ?? ''
@@ -201,7 +201,7 @@ export function classifyOsmTagsToItem(
     return 'Shared bus lane'
   if (highway === 'living_street') return 'Living street'
   if (highway === 'residential' || highway === 'tertiary' || highway === 'unclassified' || highway === 'service')
-    return 'Residential & local road'
+    return 'Residential/local road'
 
   return null
 }

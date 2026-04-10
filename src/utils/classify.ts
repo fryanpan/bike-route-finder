@@ -28,9 +28,9 @@ export interface LegendGroup {
 export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
   toddler: [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Car-free path / Radweg',    useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🚴', name: 'Bike path',    useRoads: 0.0,  defaultPreferred: true },
       { icon: '🚲', name: 'Fahrradstrasse',             useRoads: 0.0,  defaultPreferred: true },
-      { icon: '🛤️', name: 'Shared footway (park path)', useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🛤️', name: 'Shared foot path', useRoads: 0.0,  defaultPreferred: true },
     ]},
     { defaultPreferred: true, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path',       useRoads: 0.05, defaultPreferred: true },
@@ -39,42 +39,42 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     { defaultPreferred: false, items: [
       { icon: '〰️', name: 'Painted bike lane',          useRoads: 0.3,  defaultPreferred: false },
       { icon: '🚌', name: 'Shared bus lane',            useRoads: 0.3,  defaultPreferred: false },
-      { icon: '🏠', name: 'Residential & local road',           useRoads: 0.5,  defaultPreferred: false },
-      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.5, defaultPreferred: false },
+      { icon: '🏠', name: 'Residential/local road',           useRoads: 0.5,  defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough surface', useRoads: 0.5, defaultPreferred: false },
     ]},
   ],
   trailer: [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Car-free path / Radweg',    useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🚴', name: 'Bike path',    useRoads: 0.0,  defaultPreferred: true },
       { icon: '🚲', name: 'Fahrradstrasse',             useRoads: 0.0,  defaultPreferred: true },
-      { icon: '🛤️', name: 'Shared footway (park path)', useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🛤️', name: 'Shared foot path', useRoads: 0.0,  defaultPreferred: true },
       { icon: '🚌', name: 'Shared bus lane',            useRoads: 0.15, defaultPreferred: true },
     ]},
     { defaultPreferred: true, items: [
       { icon: '〰️', name: 'Painted bike lane',          useRoads: 0.15, defaultPreferred: true },
       { icon: '🏘️', name: 'Living street',              useRoads: 0.05, defaultPreferred: true },
-      { icon: '🏠', name: 'Residential & local road',           useRoads: 0.15, defaultPreferred: true },
+      { icon: '🏠', name: 'Residential/local road',           useRoads: 0.15, defaultPreferred: true },
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path', useRoads: 0.0, defaultPreferred: false },
-      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.15, defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough surface', useRoads: 0.15, defaultPreferred: false },
     ]},
   ],
   training: [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Car-free path / Radweg',    useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🚴', name: 'Bike path',    useRoads: 0.0,  defaultPreferred: true },
       { icon: '🚲', name: 'Fahrradstrasse',             useRoads: 0.0,  defaultPreferred: true },
-      { icon: '🛤️', name: 'Shared footway (park path)', useRoads: 0.0,  defaultPreferred: true },
+      { icon: '🛤️', name: 'Shared foot path', useRoads: 0.0,  defaultPreferred: true },
       { icon: '〰️', name: 'Painted bike lane',          useRoads: 0.6,  defaultPreferred: true },
       { icon: '🚌', name: 'Shared bus lane',            useRoads: 0.6,  defaultPreferred: true },
     ]},
     { defaultPreferred: true, items: [
       { icon: '🏘️', name: 'Living street',              useRoads: 0.5,  defaultPreferred: true },
-      { icon: '🏠', name: 'Residential & local road',           useRoads: 0.6,  defaultPreferred: true },
+      { icon: '🏠', name: 'Residential/local road',           useRoads: 0.6,  defaultPreferred: true },
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path', useRoads: 0.0, defaultPreferred: false },
-      { icon: '⚠️', name: 'Rough road (e.g. cobblestone)', useRoads: 0.6, defaultPreferred: false },
+      { icon: '⚠️', name: 'Rough surface', useRoads: 0.6, defaultPreferred: false },
     ]},
   ],
 }
@@ -199,7 +199,7 @@ export const BAD_SMOOTHNESS = new Set([
   'bad', 'very_bad', 'horrible', 'very_horrible', 'impassable',
 ])
 
-export const ROUGH_ROAD_ITEM = 'Rough road (e.g. cobblestone)'
+export const ROUGH_ROAD_ITEM = 'Rough surface'
 
 // Maps road_class string values returned by Valhalla API to a numeric rank.
 const ROAD_CLASS_RANK: Record<string, number> = {
@@ -259,8 +259,8 @@ export function classifyEdgeToItem(
   // Fahrradstrasse must come before cycleway/path checks (bicycle_road tag wins)
   if (bicycleRoad) return 'Fahrradstrasse'
 
-  if (use === 'cycleway' || use === 'path' || use === 'mountain_bike') return 'Car-free path / Radweg'
-  if (use === 'footway' || use === 'pedestrian') return 'Shared footway (park path)'
+  if (use === 'cycleway' || use === 'path' || use === 'mountain_bike') return 'Bike path'
+  if (use === 'footway' || use === 'pedestrian') return 'Shared foot path'
 
   if (cycleLane === 'separated') return 'Elevated sidewalk path'
 
@@ -270,7 +270,7 @@ export function classifyEdgeToItem(
   if (cycleLane === 'shared') return null  // sharrow — not in legend
 
   const rcRank = ROAD_CLASS_RANK[roadClass] ?? 5
-  if (rcRank >= 4) return 'Residential & local road'
+  if (rcRank >= 4) return 'Residential/local road'
 
   return null  // arterial roads (primary, secondary) not in legend
 }
