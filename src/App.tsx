@@ -222,8 +222,8 @@ export default function App() {
   const [tileCacheProgress, setTileCacheProgress] = useState<number | null>(null)
   const tileCacheCheckedRef = useRef(false)
 
-  // Rectangle draw mode + cached regions display
-  const [drawingCache, setDrawingCache] = useState(false)
+  // Cache viewport selection mode (Google Maps-style frame)
+  const [cacheSelecting, setCacheSelecting] = useState(false)
   const [cachedRegions, setCachedRegions] = useState<CachedRegion[]>([])
 
   // Search-triggered cache banner (separate from initial load banner)
@@ -304,9 +304,9 @@ export default function App() {
     }).catch(() => { /* ignore */ })
   }
 
-  /** Handle rectangle draw confirm: download tiles for the drawn bbox. */
-  async function handleDrawConfirm(bbox: { south: number; west: number; north: number; east: number }) {
-    setDrawingCache(false)
+  /** Handle viewport cache confirm: download tiles for the selected bbox. */
+  async function handleCacheConfirm(bbox: { south: number; west: number; north: number; east: number }) {
+    setCacheSelecting(false)
     setTileCacheProgress(0)
 
     const centerLat = (bbox.south + bbox.north) / 2
@@ -740,9 +740,9 @@ export default function App() {
             showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}
             regionRules={regionRules}
-            drawingCache={drawingCache}
-            onDrawConfirm={handleDrawConfirm}
-            onDrawCancel={() => setDrawingCache(false)}
+            cacheSelecting={cacheSelecting}
+            onCacheConfirm={handleCacheConfirm}
+            onCacheCancel={() => setCacheSelecting(false)}
             cachedRegions={cachedRegions}
             onDeleteRegion={handleDeleteRegion}
             onRefreshRegion={handleRefreshRegion}
@@ -785,16 +785,17 @@ export default function App() {
             >
               ⚙️
             </button>
-            <button
-              className={`cache-draw-btn${drawingCache ? ' cache-draw-btn-active' : ''}`}
-              onClick={() => setDrawingCache((v) => !v)}
-              title={drawingCache ? 'Cancel drawing' : 'Download area'}
-            >
-              {drawingCache ? 'Cancel' : 'DL'}
-            </button>
+            {!cacheSelecting && (
+              <button
+                className="cache-download-btn"
+                onClick={() => setCacheSelecting(true)}
+                title="Download area for offline use"
+              >
+                📥
+              </button>
+            )}
           </div>
-          {drawingCache && <p className="bike-layer-status">Draw a rectangle on the map</p>}
-          {overlayStatusMsg && !drawingCache && <p className="bike-layer-status">{overlayStatusMsg}</p>}
+          {overlayStatusMsg && !cacheSelecting && <p className="bike-layer-status">{overlayStatusMsg}</p>}
         </div>
 
         {/* Tile cache download banner */}

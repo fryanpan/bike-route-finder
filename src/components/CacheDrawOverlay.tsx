@@ -1,152 +1,107 @@
 /**
- * Rectangle drawing overlay for selecting a map area to cache.
+ * Google Maps-style viewport selection overlay for downloading map tiles.
  *
- * When active, intercepts mouse/touch events on the map to let the user
- * draw a rectangle. On release, shows a confirmation dialog with tile
- * count estimate. On confirm, triggers the download callback.
+ * When active, shows a semi-transparent dark overlay with a clear rectangle
+ * in the center (the selection area). The user pans/zooms freely — the
+ * selection rectangle stays centered, always showing the inner 70% of the
+ * viewport. Tile estimate and Download/Cancel buttons appear below.
  */
-import { useState, useCallback, useRef } from 'react'
-import { Rectangle, useMapEvents } from 'react-leaflet'
-import type { LatLngBounds } from 'leaflet'
-import L from 'leaflet'
+import { useState, useEffect, useCallback } from 'react'
+import { useMap } from 'react-leaflet'
 import { estimateTiles } from '../services/tileCache'
+import { getVisibleTiles, isTileCached } from '../services/overpass'
+import type { LatLngBounds } from 'leaflet'
 
 interface Props {
-  active: boolean
   onConfirm: (bbox: { south: number; west: number; north: number; east: number }) => void
   onCancel: () => void
 }
 
-/** Inner component that hooks into Leaflet map events. */
-function DrawHandler({
-  onDrawComplete,
-}: {
-  onDrawComplete: (bounds: LatLngBounds) => void
-}) {
-  const [drawing, setDrawing] = useState(false)
-  const [bounds, setBounds] = useState<LatLngBounds | null>(null)
-  const startRef = useRef<L.LatLng | null>(null)
+/** Margin: 15% on each side → inner 70% of viewport width/height. */
+const MARGIN = 0.15
+/** Extra bottom margin to leave room for buttons. */
+const BOTTOM_MARGIN = 0.25
 
-  useMapEvents({
-    mousedown(e) {
-      // Only respond to left click
-      if (e.originalEvent.button !== 0) return
-      e.originalEvent.preventDefault()
-      e.originalEvent.stopPropagation()
-      startRef.current = e.latlng
-      setBounds(L.latLngBounds(e.latlng, e.latlng))
-      setDrawing(true)
-      // Disable map dragging while drawing
-      e.target.dragging.disable()
-    },
-    mousemove(e) {
-      if (!drawing || !startRef.current) return
-      setBounds(L.latLngBounds(startRef.current, e.latlng))
-    },
-    mouseup(e) {
-      if (!drawing || !startRef.current) return
-      e.target.dragging.enable()
-      setDrawing(false)
-      const finalBounds = L.latLngBounds(startRef.current, e.latlng)
-      startRef.current = null
-      setBounds(null)
-
-      // Ignore tiny rectangles (accidental clicks)
-      const ne = finalBounds.getNorthEast()
-      const sw = finalBounds.getSouthWest()
-      const latSpan = Math.abs(ne.lat - sw.lat)
-      const lngSpan = Math.abs(ne.lng - sw.lng)
-      if (latSpan < 0.001 && lngSpan < 0.001) return
-
-      onDrawComplete(finalBounds)
-    },
-  })
-
-  if (!bounds) return null
-
-  return (
-    <Rectangle
-      bounds={bounds}
-      pathOptions={{
-        color: '#2563eb',
-        weight: 2,
-        fillColor: '#2563eb',
-        fillOpacity: 0.15,
-        dashArray: '6 4',
-      }}
-    />
-  )
+/** Compute the inner bbox from current map bounds with margins applied. */
+function getInnerBbox(bounds: LatLngBounds): { south: number; west: number; north: number; east: number } {
+  const south = bounds.getSouth()
+  const north = bounds.getNorth()
+  const west = bounds.getWest()
+  const east = bounds.getEast()
+  const latSpan = north - south
+  const lngSpan = east - west
+  return {
+    south: south + latSpan * BOTTOM_MARGIN,
+    north: north - latSpan * MARGIN,
+    west: west + lngSpan * MARGIN,
+    east: east - lngSpan * MARGIN,
+  }
 }
 
-export default function CacheDrawOverlay({ active, onConfirm, onCancel }: Props) {
-  const [pendingBbox, setPendingBbox] = useState<{
-    south: number; west: number; north: number; east: number
-  } | null>(null)
+/** Count total tiles and how many are already in the in-memory cache. */
+function countTiles(bbox: { south: number; west: number; north: number; east: number }) {
+  const fakeBounds = {
+    getSouth: () => bbox.south,
+    getNorth: () => bbox.north,
+    getWest: () => bbox.west,
+    getEast: () => bbox.east,
+  } as LatLngBounds
+  const tiles = getVisibleTiles(fakeBounds)
+  let cached = 0
+  for (const t of tiles) {
+    if (isTileCached(t.row, t.col)) cached++
+  }
+  return { total: tiles.length, cached }
+}
 
-  const handleDrawComplete = useCallback((bounds: LatLngBounds) => {
-    const bbox = {
-      south: bounds.getSouth(),
-      west: bounds.getWest(),
-      north: bounds.getNorth(),
-      east: bounds.getEast(),
+export default function CacheDrawOverlay({ onConfirm, onCancel }: Props) {
+  const map = useMap()
+  const [tileInfo, setTileInfo] = useState({ total: 0, cached: 0 })
+
+  const updateTileInfo = useCallback(() => {
+    const bbox = getInnerBbox(map.getBounds())
+    setTileInfo(countTiles(bbox))
+  }, [map])
+
+  useEffect(() => {
+    updateTileInfo()
+    map.on('moveend', updateTileInfo)
+    map.on('zoomend', updateTileInfo)
+    return () => {
+      map.off('moveend', updateTileInfo)
+      map.off('zoomend', updateTileInfo)
     }
-    setPendingBbox(bbox)
-  }, [])
+  }, [map, updateTileInfo])
 
-  const handleConfirm = useCallback(() => {
-    if (pendingBbox) {
-      onConfirm(pendingBbox)
-      setPendingBbox(null)
-    }
-  }, [pendingBbox, onConfirm])
+  function handleDownload() {
+    const bbox = getInnerBbox(map.getBounds())
+    onConfirm(bbox)
+  }
 
-  const handleCancel = useCallback(() => {
-    setPendingBbox(null)
-    onCancel()
-  }, [onCancel])
-
-  if (!active && !pendingBbox) return null
-
-  const estimate = pendingBbox ? estimateTiles(pendingBbox) : null
+  const estimate = estimateTiles(getInnerBbox(map.getBounds()))
+  const uncached = tileInfo.total - tileInfo.cached
 
   return (
     <>
-      {active && !pendingBbox && <DrawHandler onDrawComplete={handleDrawComplete} />}
+      {/* Single div with massive box-shadow creates the dark frame effect */}
+      <div className="cache-cutout" />
 
-      {pendingBbox && (
-        <Rectangle
-          bounds={L.latLngBounds(
-            [pendingBbox.south, pendingBbox.west],
-            [pendingBbox.north, pendingBbox.east],
-          )}
-          pathOptions={{
-            color: '#2563eb',
-            weight: 2,
-            fillColor: '#2563eb',
-            fillOpacity: 0.15,
-            dashArray: '6 4',
-          }}
-        />
-      )}
-
-      {pendingBbox && estimate && (
-        <div className="cache-rect-confirm" role="dialog" aria-label="Confirm download area">
-          <p className="cache-rect-confirm-text">
-            Download cycling data for this area?
-          </p>
-          <p className="cache-rect-confirm-detail">
-            ~{estimate.tileCount} tiles, ~{estimate.estimatedSeconds}s
-          </p>
-          <div className="cache-rect-confirm-actions">
-            <button className="download-banner-dismiss" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button className="download-banner-btn" onClick={handleConfirm}>
-              Download
-            </button>
-          </div>
+      {/* Info + buttons below the cutout */}
+      <div className="cache-controls">
+        <p className="cache-estimate">
+          ~{tileInfo.total} tile{tileInfo.total !== 1 ? 's' : ''}
+          {tileInfo.cached > 0 && ` (${tileInfo.cached} cached)`}
+          {uncached > 0 ? ` · ~${estimate.estimatedSeconds}s` : ' · instant'}
+        </p>
+        <div className="cache-btn-row">
+          <button className="cache-btn cache-btn-download" onClick={handleDownload}>
+            Download
+          </button>
+          <button className="cache-btn cache-btn-cancel" onClick={onCancel}>
+            Cancel
+          </button>
         </div>
-      )}
+      </div>
     </>
   )
 }
