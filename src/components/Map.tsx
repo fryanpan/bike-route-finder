@@ -371,10 +371,10 @@ interface Props {
   regionRules?: ClassificationRule[]
   onSelectRoute?: (index: number) => void
   onAddWaypoint?: (lat: number, lng: number) => void
-  // Cache drawing
-  drawingCache?: boolean
-  onDrawConfirm?: (bbox: { south: number; west: number; north: number; east: number }) => void
-  onDrawCancel?: () => void
+  // Cache viewport selection (Google Maps-style)
+  cacheSelecting?: boolean
+  onCacheConfirm?: (bbox: { south: number; west: number; north: number; east: number }) => void
+  onCacheCancel?: () => void
   // Cached regions display
   cachedRegions?: CachedRegion[]
   onDeleteRegion?: (name: string) => void
@@ -399,9 +399,9 @@ export default function Map({
   regionRules,
   onSelectRoute,
   onAddWaypoint,
-  drawingCache = false,
-  onDrawConfirm,
-  onDrawCancel,
+  cacheSelecting = false,
+  onCacheConfirm,
+  onCacheCancel,
   cachedRegions = [],
   onDeleteRegion,
   onRefreshRegion,
@@ -504,12 +504,11 @@ export default function Map({
         />
       )}
 
-      {/* Rectangle drawing for cache download */}
-      {onDrawConfirm && onDrawCancel && (
+      {/* Viewport-based cache download overlay */}
+      {cacheSelecting && onCacheConfirm && onCacheCancel && (
         <CacheDrawOverlay
-          active={drawingCache}
-          onConfirm={onDrawConfirm}
-          onCancel={onDrawCancel}
+          onConfirm={onCacheConfirm}
+          onCancel={onCacheCancel}
         />
       )}
 
