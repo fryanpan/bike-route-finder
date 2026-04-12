@@ -8,8 +8,9 @@ graph TB
         UI[Map UI<br/>React + Leaflet]
         ClientRouter[Client Router<br/>ngraph.path A*]
         TileCache[Tile Cache<br/>In-memory + IndexedDB]
-        Classify[Classifier<br/>classify.ts + overpass.ts]
+        Classify[classifyOsmTagsToItem<br/>SINGLE classifier used by all]
         Scorer[Route Scorer<br/>routeScorer.ts]
+        Overlay[Map Overlay<br/>BikeMapOverlay.tsx]
     end
 
     subgraph "Cloudflare"
@@ -26,18 +27,23 @@ graph TB
         Mapillary[Mapillary<br/>street imagery]
     end
 
-    UI --> ClientRouter
-    ClientRouter --> TileCache
+    TileCache -->|OsmWay data| Classify
+    Classify -->|item names + speeds| ClientRouter
+    Classify -->|item names + colors| Overlay
+    Classify -->|item names| Scorer
+    ClientRouter -->|read tiles| TileCache
+    Overlay -->|read tiles| TileCache
+    Scorer -->|read tiles| TileCache
     TileCache -->|cache miss| Worker
     Worker -->|proxy + cache| Overpass
     Worker -->|proxy| Valhalla
     Worker -->|proxy| Nominatim
-    Classify --> TileCache
-    Scorer --> TileCache
     UI -->|route log| D1
     UI -->|rules| KV
     EdgeCache -->|30-day TTL| Overpass
 ```
+
+**Key principle:** `classifyOsmTagsToItem()` (in `overpass.ts`) is the single classification function. The map overlay, client router, and route scorer ALL call it. What you see on the map (green/orange) is what the router routes on.
 
 ## Routing Architecture
 
@@ -67,7 +73,8 @@ The client router uses **time as cost** — faster segments are cheaper. This na
 | Shared foot path / Living street | 8 km/h | 45s |
 | Residential/local road | 4 km/h | 90s |
 | Painted bike lane | 3 km/h | 120s |
-| Walking (footway) | 5 km/h | 72s |
+| Walking (footway) | 3 km/h | 120s |
+| Unclassified road with sidewalk | 3 km/h | 120s |
 | Unclassified road without sidewalk | **Excluded** | ∞ |
 
 ### Gap Healing

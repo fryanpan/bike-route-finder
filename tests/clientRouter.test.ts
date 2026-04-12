@@ -83,9 +83,9 @@ describe('buildRoutingGraph', () => {
     const link = graph.getLink('52.50000,13.40000', '52.50100,13.40000')
     expect(link).toBeTruthy()
     expect(link!.data.isWalking).toBe(true)
-    // Cost = time = distance / walking_speed. Footways at 5 km/h are slightly
-    // cheaper than unclassified roads at 4 km/h (car-free advantage).
-    const walkingSpeed = 5 / 3.6 // toddler walk speed (5 km/h)
+    // Cost = time = distance / walking_speed. Walking and painted bike lanes
+    // are both 3 km/h for toddler — between toddler walking and slow biking.
+    const walkingSpeed = 3 / 3.6 // toddler walk speed (3 km/h)
     const expectedCost = link!.data.distance / walkingSpeed
     expect(link!.data.cost).toBeCloseTo(expectedCost, 0)
   })
