@@ -1,8 +1,22 @@
 # Family Bike Map
+Google Maps (and other apps) do a poor job helping families discover or plan rides with young children.  Other apps focus mainly on older riders who are comfortable with traffic rules and minimal separation from cars.
 
-A bike route planner for parents who ride with young children. Find safe routes, browse bike-friendly infrastructure, and navigate with confidence.
+This is a prototype that caters instead to families -- how can we discover, plan and go on family rides with a toddler?  How can we take into account what's comfortable and safe as a toddler progresses.  
 
 **Try it at [bike-map.fryanpan.com](https://bike-map.fryanpan.com)**
+
+For example, this is the progression Bea's been moving along (she's at around stage 3) 
+| Stage | Needs |
+| 1. Learning to ride | Fully car free, flat, smooth, enough space to learn to manouver (e.g. wide path or open area) |
+| 2. Can ride with some bike control | Needs full separation from cars or slow sidewalk riding |
+| 3. Has good bike control, but no traffic sense | Ideally has full separation from cars or sidewalk riding, but can sometimes bike on quiet streets |
+| 4. Has good bike control, can observe other vehicles and apply traffic rules | Can start using bike paths with partial separation (e.g. painted bike lanes) |
+
+At each stage we needed a different map.  At first (about a year ago when Bea was at Stage 1), I started compiling [this map](https://felt.com/map/SF-Bay-Area-Toddler-Friendly-Bike-Paths-KeytayiJQr2w1aiFU9CNrkB?share=1&loc=37.731,-122.3192,10.01z) of great car-free bike paths around the SF Bay Area by hand.  But it's so labor intensive and hard to adapt as Bea's abilities improve.
+
+Most of the data exists (e.g. see [Cyclosm](https://www.cyclosm.org/) which shows the bike route data available in OpenStreetMaps).  But all the existing apps and maps I've found start with the assumption that any bicycle infrastructure is useful.  For toddlers though (and even adults), this is rarely ever true.
+
+So that's why I took a couple days to build this prototype, on top of OpenStreetMap data via Overpass API.  And with a custom, browser-side routing engine that can handle toddler rides that go partly on bikeways and partly on sidewalks (when needed).
 
 ## What you can do
 
