@@ -1,4 +1,4 @@
-name = "bike-route-finder"
+name = "family-bike-map"
 main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]

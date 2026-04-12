@@ -72,7 +72,7 @@ export default {
       const resp = await fetch(target, {
         method: 'GET',
         headers: {
-          'User-Agent': 'BerlinBikeRouteFinder/0.1 (github.com/fryanpan/bike-route-finder)',
+          'User-Agent': 'FamilyBikeMap/0.1 (github.com/fryanpan/family-bike-map)',
           'Accept': 'application/json',
         },
       })
@@ -118,7 +118,7 @@ export default {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'BerlinBikeRouteFinder/0.1 (github.com/fryanpan/bike-route-finder)',
+          'User-Agent': 'FamilyBikeMap/0.1 (github.com/fryanpan/family-bike-map)',
         },
         body,
       })
@@ -155,7 +155,7 @@ export default {
       const resp = await fetch(target, {
         method: 'GET',
         headers: {
-          'User-Agent': 'BerlinBikeRouteFinder/0.1 (github.com/fryanpan/bike-route-finder)',
+          'User-Agent': 'FamilyBikeMap/0.1 (github.com/fryanpan/family-bike-map)',
           'Accept': 'application/json',
         },
       })
