@@ -1,4 +1,4 @@
-# Project: bike-route-finder
+# Project: family-bike-map
 
 ## Overview
 Family-friendly bike route finder. Accounts for specific safety preferences (quiet side streets, Fahrradstrasse, separated bike lanes, sidewalk width) that Google and Apple Maps don't handle well.
