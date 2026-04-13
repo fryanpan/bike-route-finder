@@ -38,15 +38,26 @@ describe('buildRoutingGraph', () => {
   ]
 
   test('creates nodes for all coordinates', () => {
-    const graph = buildRoutingGraph(ways, 'kid-starting-out', new Set(['Bike path']))
+    // kid-confident accepts LTS 1 including quiet residential (car-free
+    // cycleway + mixed-traffic residential), so both fixture ways are
+    // included. kid-starting-out rejects residential (requireCarFree).
+    const graph = buildRoutingGraph(ways, 'kid-confident', new Set(['Bike path']))
     // 4 unique coordinates
     expect(graph.getNodeCount()).toBe(4)
   })
 
   test('creates edges in both directions for non-oneway', () => {
-    const graph = buildRoutingGraph(ways, 'kid-starting-out', new Set(['Bike path']))
+    const graph = buildRoutingGraph(ways, 'kid-confident', new Set(['Bike path']))
     // Way 1: 2 segments * 2 dirs = 4, Way 2: 1 segment * 2 dirs = 2, total = 6
     expect(graph.getLinkCount()).toBe(6)
+  })
+
+  test('kid-starting-out rejects mixed-traffic residential (requireCarFree)', () => {
+    // With requireCarFree, the residential way is excluded entirely.
+    // Only the car-free cycleway remains: 3 nodes, 4 edges (2 segs × 2 dirs).
+    const graph = buildRoutingGraph(ways, 'kid-starting-out', new Set(['Bike path']))
+    expect(graph.getNodeCount()).toBe(3)
+    expect(graph.getLinkCount()).toBe(4)
   })
 
   test('respects oneway', () => {
@@ -83,9 +94,9 @@ describe('buildRoutingGraph', () => {
     const link = graph.getLink('52.50000,13.40000', '52.50100,13.40000')
     expect(link).toBeTruthy()
     expect(link!.data.isWalking).toBe(true)
-    // Cost = time = distance / walking_speed. Walking and painted bike lanes
-    // are both 3 km/h for toddler — between toddler walking and slow biking.
-    const walkingSpeed = 3 / 3.6 // toddler walk speed (3 km/h)
+    // Cost = time = distance / walking_speed. Kid-starting-out walking
+    // pace is 2 km/h (a 4-year-old walking alongside a parent).
+    const walkingSpeed = 2 / 3.6 // kid-starting-out walkingSpeedKmh
     const expectedCost = link!.data.distance / walkingSpeed
     expect(link!.data.cost).toBeCloseTo(expectedCost, 0)
   })
@@ -174,8 +185,10 @@ describe('routeOnGraph', () => {
     expect(walkingSegs.length).toBeGreaterThan(0)
   })
 
-  test('toddler mode: Fahrradstrasse is fastest, painted bike lane is near-walking', () => {
-    // Fahrradstrasse edge
+  test('kid-starting-out rejects Fahrradstrasse and painted bike lane (cars present)', () => {
+    // Under Option C, kid-starting-out requires physical car separation.
+    // Fahrradstrasse has cars as guests on the same surface — rejected.
+    // Secondary-road painted lane is LTS 3 in Berlin-style context — rejected.
     const fahrradWays: OsmWay[] = [{
       osmId: 40,
       itemName: null,
@@ -193,19 +206,37 @@ describe('routeOnGraph', () => {
     const gFahr = buildRoutingGraph(fahrradWays, 'kid-starting-out', preferred)
     const gPaint = buildRoutingGraph(paintedWays, 'kid-starting-out', preferred)
 
-    const fahrLink = gFahr.getLink('52.50000,13.40000', '52.50100,13.40000')
-    const paintLink = gPaint.getLink('52.50000,13.40000', '52.50100,13.40000')
-    expect(fahrLink).toBeTruthy()
-    expect(paintLink).toBeTruthy()
+    // Both rejected → empty graphs
+    expect(gFahr.getLinkCount()).toBe(0)
+    expect(gPaint.getLinkCount()).toBe(0)
+  })
 
-    // Fahrradstrasse (12 km/h) should be much cheaper than painted lane (3 km/h)
-    // Same distance, so cost ratio should be ~4:1
-    expect(paintLink!.data.cost / fahrLink!.data.cost).toBeGreaterThan(3.5)
-    expect(paintLink!.data.cost / fahrLink!.data.cost).toBeLessThan(4.5)
+  test('kid-confident accepts Fahrradstrasse but still rejects secondary-road painted lanes', () => {
+    // kid-confident accepts full Furth LTS 1 including Fahrradstraßen.
+    // A secondary-road painted lane is LTS 2–3 — too stressful for confident.
+    const fahrradWays: OsmWay[] = [{
+      osmId: 42,
+      itemName: null,
+      tags: { highway: 'residential', bicycle_road: 'yes' },
+      coordinates: [[52.5000, 13.4000], [52.5010, 13.4000]],
+    }]
+    const paintedWays: OsmWay[] = [{
+      osmId: 43,
+      itemName: null,
+      tags: { highway: 'secondary', cycleway: 'lane' },
+      coordinates: [[52.5000, 13.4000], [52.5010, 13.4000]],
+    }]
+
+    const gFahr = buildRoutingGraph(fahrradWays, 'kid-confident', new Set(['Fahrradstrasse']))
+    const gPaint = buildRoutingGraph(paintedWays, 'kid-confident', new Set(['Painted bike lane']))
+
+    expect(gFahr.getLinkCount()).toBe(2)   // accepted, both directions
+    expect(gPaint.getLinkCount()).toBe(0)  // rejected
   })
 
   test('prefers lower-cost edges', () => {
-    // Two parallel paths: one cycleway (preferred, cost 1x), one residential (cost 3x)
+    // Two parallel paths: one cycleway (preferred, cost 1x), one residential (cost 3x).
+    // Use kid-confident which accepts both (cycleway car-free, residential as LTS 1).
     const twoPath: OsmWay[] = [
       {
         osmId: 20,
@@ -221,13 +252,14 @@ describe('routeOnGraph', () => {
       },
     ]
     const preferred = new Set(['Bike path'])
-    const graph = buildRoutingGraph(twoPath, 'kid-starting-out', preferred)
+    const graph = buildRoutingGraph(twoPath, 'kid-confident', preferred)
     const result = routeOnGraph(
       graph, 52.5000, 13.4000, 52.5010, 13.4020,
-      'kid-starting-out', preferred,
+      'kid-confident', preferred,
     )
     expect(result).not.toBeNull()
     // Should take the cycleway (via 52.5005) not the residential (via 52.4995)
+    // — cycleway is both car-free AND in the preferred set.
     const midLat = result!.coordinates[1][0]
     expect(midLat).toBeCloseTo(52.5005, 3)
   })

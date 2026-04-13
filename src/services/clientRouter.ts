@@ -17,6 +17,9 @@ import {
   classifyOsmTagsToItem,
 } from './overpass'
 import { buildSegments, healSegmentGaps } from '../utils/classify'
+import { classifyEdge } from '../utils/lts'
+import { MODE_RULES, applyModeRule } from '../data/modes'
+import type { RideMode } from '../data/modes'
 import type { OsmWay, Route, RouteSegment } from '../utils/types'
 import type { ClassificationRule } from './rules'
 
@@ -63,110 +66,27 @@ function coordId(lat: number, lng: number): string {
   return `${lat.toFixed(5)},${lng.toFixed(5)}`
 }
 
-// ── Speed-based costing ───────────────────────────────────────────────────
+// ── Speed-based costing via mode rules ────────────────────────────────────
 //
-// Cost = time to traverse the edge. Speed depends on infrastructure type.
-// Toddler mode has per-item-name speeds for fine-grained control:
-//   Fahrradstrasse > Bike path > Elevated sidewalk > Shared foot/Living street
-//   > Walking/Residential/Painted lane (strongly penalized)
+// Edge cost = time to traverse (distance / speed). Speed is resolved from
+// the mode rule in src/data/modes.ts, which combines Layer 1 LTS
+// classification with the rider's mode-specific acceptance bands.
 //
-// This naturally penalizes unsafe segments: walking-speed edges are 3-4x
-// slower than Fahrradstrasse, so the router finds safe detours.
+// The old per-item-name speed table (KID_ITEM_SPEEDS) has been replaced.
+// Speed selection is now:
+//   1. Layer 1 classifies the edge (LTS tier, carFree flag, surface, etc.)
+//   2. Mode rule decides accept/reject + base speed via applyModeRule
+//   3. If the user has toggled the corresponding legend item off, speed
+//      drops to the mode's slowSpeedKmh (light user-level override —
+//      doesn't reject, just nudges).
+//
+// Walking-only OSM ways (highway=footway without bicycle=yes) bypass the
+// mode rule and enter the graph as bridge-walk edges at the mode's
+// walkingSpeedKmh — this lets the router use a short sidewalk detour to
+// cross bad-infra gaps when no cycling alternative exists.
 
-/**
- * Per-item-name speeds (km/h) for "kid starting out" and other strict kid modes.
- * These items dominate route preference because the kid is piloting at low speed.
- */
-const KID_ITEM_SPEEDS: Record<string, number> = {
-  'Fahrradstrasse':          12,  // best: priority bike road
-  'Bike path':               10,  // car-free Radweg
-  'Elevated sidewalk path':   9,  // separated track, slightly narrower
-  'Shared foot path':         8,  // shared with pedestrians
-  'Living street':            8,  // low traffic, shared space
-  'Painted bike lane':        3,  // strongly discouraged for strict modes
-  'Shared bus lane':          3,  // strongly discouraged
-  'Residential/local road':   4,  // cautious, nearly walking
-}
-
-// Kid walking pace — used as the "bridge over bad infra by walking on the
-// sidewalk" speed for ALL kid modes (starting out, confident, traffic-savvy).
-// Heavily penalized in cost so the router only uses it as a last resort.
-const KID_WALKING_KMH = 3
-
-// All four "kid modes" share the most-protective exclusion logic.
-// kid-traffic-savvy is allowed to use tertiary roads with sidewalks,
-// but trunk/primary/secondary are still excluded for all kid modes.
-const KID_MODES = new Set([
-  'kid-starting-out',
-  'kid-confident',
-  'kid-traffic-savvy',
-])
-
-const SPEEDS: Record<string, Record<string, number>> = {
-  // Strictest. Only segregated LTS 1 infra, fully car-free pathways.
-  'kid-starting-out': {
-    preferred: 10 / 3.6,
-    otherClassified: 5 / 3.6,
-    walking: KID_WALKING_KMH / 3.6,
-    unclassified: KID_WALKING_KMH / 3.6,
-  },
-  // Kid has good control; living streets and Fahrradstraßen acceptable.
-  'kid-confident': {
-    preferred: 12 / 3.6,
-    otherClassified: 7 / 3.6,
-    walking: KID_WALKING_KMH / 3.6,
-    unclassified: 4 / 3.6,
-  },
-  // Kid handles painted lanes and intersections; tertiary with sidewalk OK.
-  'kid-traffic-savvy': {
-    preferred: 14 / 3.6,
-    otherClassified: 10 / 3.6,
-    walking: KID_WALKING_KMH / 3.6,
-    unclassified: 6 / 3.6,
-  },
-  // Adult pilots; surface-strict; can take residential and painted lanes.
-  'carrying-kid': {
-    preferred: 22 / 3.6,
-    otherClassified: 15 / 3.6,
-    walking: 4 / 3.6,         // adult walking pace
-    unclassified: 4 / 3.6,
-  },
-  // Adult fitness ride; LTS ≤3, prioritizes 30 km/h flow.
-  training: {
-    preferred: 30 / 3.6,
-    otherClassified: 20 / 3.6,
-    walking: 5 / 3.6,
-    unclassified: 10 / 3.6,
-  },
-}
-
-function getSpeed(profileKey: string): Record<string, number> {
-  return SPEEDS[profileKey] ?? SPEEDS['kid-starting-out']
-}
-
-/**
- * Resolve the effective speed (m/s) for an edge given its classification.
- * Toddler mode uses per-item-name speeds for fine granularity.
- */
-function resolveEdgeSpeed(
-  profileKey: string,
-  itemName: string | null,
-  isWalking: boolean,
-  isPreferred: boolean,
-  speeds: Record<string, number>,
-): number {
-  if (isWalking) return speeds.walking
-
-  // Kid modes: use per-item speeds when available (more granular than the
-  // generic preferred/otherClassified buckets above).
-  if (KID_MODES.has(profileKey) && itemName && KID_ITEM_SPEEDS[itemName] !== undefined) {
-    return KID_ITEM_SPEEDS[itemName] / 3.6
-  }
-
-  // Generic fallback for all profiles
-  if (isPreferred) return speeds.preferred
-  if (itemName) return speeds.otherClassified
-  return speeds.unclassified
+function resolveRule(profileKey: string) {
+  return MODE_RULES[profileKey as RideMode] ?? MODE_RULES['kid-starting-out']
 }
 
 // ── Graph builder ──────────────────────────────────────────────────────────
@@ -188,7 +108,17 @@ function isWalkingOnly(tags: Record<string, string>): boolean {
 }
 
 /**
- * Build an ngraph from OsmWay arrays with cost based on classification.
+ * Build an ngraph from OsmWay arrays with cost based on mode rules.
+ *
+ * Edge acceptance is determined by the Layer 1.5 mode rule from
+ * src/data/modes.ts. Edges the mode rule rejects are not added to the
+ * graph at all — they're simply unavailable to the router. This replaces
+ * the old "add every edge with a high cost" approach and its per-item
+ * speed overrides.
+ *
+ * preferredItemNames is consumed as a light user preference nudge: items
+ * the user has toggled off get the slower `slowSpeedKmh` rather than
+ * `ridingSpeedKmh`. The mode rule still has final say on accept/reject.
  */
 export function buildRoutingGraph(
   ways: OsmWay[],
@@ -197,36 +127,44 @@ export function buildRoutingGraph(
   regionRules?: ClassificationRule[],
 ): Graph<NodeData, EdgeData> {
   const graph = createGraph<NodeData, EdgeData>()
+  const rule = resolveRule(profileKey)
 
   for (const way of ways) {
     const coords = way.coordinates
     if (coords.length < 2) continue
 
     const tags = way.tags
-    const walking = isWalkingOnly(tags)
-    const itemName = classifyOsmTagsToItem(tags, profileKey, regionRules)
-    const speeds = getSpeed(profileKey)
-    const isPreferred = itemName !== null && preferredItemNames.has(itemName)
+    const walkingOnly = isWalkingOnly(tags)
 
-    // Exclude unclassified major roads without sidewalks in kid modes.
-    // kid-traffic-savvy is more permissive: tertiary roads with sidewalks
-    // are allowed (kid can cross at lights, ride at the curb).
-    if (!walking && !itemName) {
-      const hasSidewalk = tags.sidewalk === 'both' || tags.sidewalk === 'left' ||
-        tags.sidewalk === 'right' || tags.sidewalk === 'yes'
-      const hw = tags.highway ?? ''
-      if (KID_MODES.has(profileKey)) {
-        const blocked = profileKey === 'kid-traffic-savvy'
-          ? ['primary', 'secondary', 'trunk']
-          : ['primary', 'secondary', 'tertiary', 'trunk']
-        if (!hasSidewalk && blocked.includes(hw)) {
-          continue  // no safe option for a kid on this road
-        }
-      }
+    // Walking-only ways (footway without bicycle=yes, stairs) bypass the
+    // mode rule and enter the graph as bridge-walk edges. The router will
+    // only use them when no cycling alternative exists because they're
+    // much slower than riding.
+    let speedKmh: number
+    let isWalking: boolean
+    if (walkingOnly) {
+      speedKmh = rule.walkingSpeedKmh
+      isWalking = true
+    } else {
+      // Classify the edge using Layer 1 (LTS + carFree + bikeInfra + speed
+      // + traffic density + surface), then ask the mode rule whether it's
+      // accepted and at what speed.
+      const classification = classifyEdge(tags)
+      const decision = applyModeRule(rule, classification)
+      if (!decision.accepted) continue  // mode rule rejects this edge
+      speedKmh = decision.speedKmh
+      isWalking = decision.isWalking
     }
 
-    // Determine speed (m/s) — cost is time = distance / speed
-    const speed = resolveEdgeSpeed(profileKey, itemName, walking, isPreferred, speeds)
+    // Light user-preference nudge: if the user has toggled off the legend
+    // item for this way, drop to slowSpeedKmh (but still include the edge —
+    // user overrides are soft, not hard filters).
+    const itemName = classifyOsmTagsToItem(tags, profileKey, regionRules)
+    if (!isWalking && itemName && !preferredItemNames.has(itemName)) {
+      speedKmh = Math.min(speedKmh, rule.slowSpeedKmh)
+    }
+
+    const speed = speedKmh / 3.6  // km/h → m/s
 
     // Check one-way constraints
     const oneway = tags.oneway === 'yes' || tags['oneway:bicycle'] === 'yes'
@@ -245,7 +183,7 @@ export function buildRoutingGraph(
 
       const dist = haversineM(lat1, lng1, lat2, lng2)
       const cost = dist / speed  // cost = time in seconds
-      const edgeData: EdgeData = { distance: dist, cost, wayTags: tags, isWalking: walking }
+      const edgeData: EdgeData = { distance: dist, cost, wayTags: tags, isWalking }
 
       // Forward edge (always)
       graph.addLink(id1, id2, edgeData)
@@ -331,7 +269,9 @@ export function routeOnGraph(
   const endId = findNearestNode(graph, endLat, endLng)
   if (!startId || !endId) return null
 
-  const speeds = getSpeed(profileKey)
+  const rule = resolveRule(profileKey)
+  const maxSpeedMs = rule.ridingSpeedKmh / 3.6  // optimistic lower-bound for A*
+
   const pathFinder = aStar(graph, {
     oriented: true,
     distance(_from: Node<NodeData>, _to: Node<NodeData>, link) {
@@ -339,14 +279,10 @@ export function routeOnGraph(
     },
     heuristic(from: Node<NodeData>, to: Node<NodeData>) {
       // Heuristic must be in same units as cost (time in seconds).
-      // Use the fastest possible speed as optimistic lower bound (admissible).
-      // For kid modes, the per-item speed table dominates — pick the fastest
-      // entry as the optimistic A* heuristic lower bound.
-      const maxSpeed = KID_MODES.has(profileKey)
-        ? Math.max(...Object.values(KID_ITEM_SPEEDS)) / 3.6
-        : speeds.preferred
+      // Use the mode's top riding speed as the optimistic lower bound —
+      // A* correctness requires the heuristic to never overestimate.
       const dist = haversineM(from.data.lat, from.data.lng, to.data.lat, to.data.lng)
-      return dist / maxSpeed
+      return dist / maxSpeedMs
     },
   })
 
