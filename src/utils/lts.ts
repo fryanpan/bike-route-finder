@@ -52,55 +52,199 @@ export const LTS_LABELS: Record<LtsLevel, {
 }
 
 /**
- * Compute LTS for a road segment from OSM tags.
+ * Rich per-edge classification returned by the LTS classifier.
+ *
+ * This is the Layer 1 output consumed by the Layer 1.5 mode rule check
+ * (src/data/modes.ts) and by the Layer 2 region overlay. It captures more
+ * than a single LTS tier number because mode rules need to distinguish:
+ *
+ *   - physically-separated LTS 1 (kid-starting-out accepts)
+ *   - mixed-traffic LTS 1 (kid-confident accepts, kid-starting-out rejects)
+ *   - LTS 2 with/without bike infrastructure (kid-traffic-savvy condition)
+ *   - road speed and traffic density (mode-rule conditions on LTS 2+)
+ *   - surface type (mode-rule cobble handling)
  */
-export function computeLts(tags: Record<string, string>): LtsLevel {
+export interface LtsClassification {
+  lts: LtsLevel
+  // True iff the bike does NOT share a traffic surface with motor vehicles.
+  // Physically separated cycle tracks, dedicated cycleways, park paths, and
+  // pedestrianised zones are all car-free. Fahrradstraßen, living streets,
+  // quiet residential, and painted lanes are NOT (cars present on the same
+  // surface, even if slow or rare).
+  carFree: boolean
+  // True iff the edge is legally or structurally engineered to give bikes
+  // priority over cars on a shared surface. Fahrradstraßen (bicycle_road=yes),
+  // Dutch fietsstraten (cyclestreet=yes), living streets (legally ≤ walking
+  // pace for motor traffic), and residential streets restricted to local
+  // access only (motor_vehicle=destination) all qualify. In practice, cars
+  // on these infrastructures slow down and yield to bikes — bad actors
+  // happen but are the exception, not the norm. NOTE: Layer 2 city profiles
+  // may demote specific named corridors where drivers habitually misbehave.
+  bikePriority: boolean
+  // True iff the edge has any explicit bike infrastructure — a cycleway
+  // tag, a bike path, a Fahrradstraße, or a dedicated track/lane.
+  bikeInfra: boolean
+  // Inferred motor vehicle operating speed (km/h). Taken from `maxspeed`
+  // when present, otherwise from a road-class default. Null when not
+  // applicable (car-free paths).
+  speedKmh: number | null
+  // Rough traffic density estimate from road class. Null for car-free paths.
+  trafficDensity: TrafficDensity | null
+  // OSM `surface` tag if set, otherwise null.
+  surface: string | null
+}
+
+export type TrafficDensity = 'low' | 'moderate' | 'high'
+
+/**
+ * Classify an edge from its OSM tags. Returns a rich LtsClassification
+ * object. The LTS tier is computed per Furth's canonical criteria
+ * (https://peterfurth.sites.northeastern.edu/level-of-traffic-stress/);
+ * the other fields are derived so mode rules can check stricter-than-LTS
+ * constraints like car-free separation or traffic-density caps.
+ */
+export function classifyEdge(tags: Record<string, string>): LtsClassification {
   const highway = tags.highway ?? ''
   const cycleway = tags.cycleway ?? tags['cycleway:right'] ?? tags['cycleway:both'] ?? ''
   const maxspeed = parseInt(tags.maxspeed ?? '0', 10)
   const lanes = parseInt(tags.lanes ?? '0', 10)
+  const surface = tags.surface ?? null
 
-  // Car-free infrastructure = LTS 1
-  if (['cycleway', 'path', 'track', 'pedestrian'].includes(highway)) return 1
-  if (highway === 'footway' && (tags.bicycle === 'yes' || tags.bicycle === 'designated')) return 1
-  if (highway === 'living_street') return 1
-  if (tags.bicycle_road === 'yes' || tags.cyclestreet === 'yes') return 1
+  const isCycleway = highway === 'cycleway'
+  const isPath = highway === 'path'
+  const isFootway = highway === 'footway'
+  const isPedestrian = highway === 'pedestrian'
+  const isTrack = highway === 'track'  // forest/farm track, low motor density
+  const isLivingStreet = highway === 'living_street'
+  const isResidential = highway === 'residential'
+  const isBikeRoad = tags.bicycle_road === 'yes' || tags.cyclestreet === 'yes'
+  const bikeOnFoot = isFootway && (tags.bicycle === 'yes' || tags.bicycle === 'designated')
+  const bikeOnPath = isPath && tags.bicycle !== 'no'
+  const explicitlyNoMotor = tags.motor_vehicle === 'no' || tags.access === 'no'
+  const hasSeparatedTrack = cycleway === 'track' || cycleway === 'opposite_track'
+  const hasPaintedLane = cycleway === 'lane' || cycleway === 'opposite_lane'
+  const hasBusLane = cycleway === 'share_busway'
 
-  // Separated cycle track = LTS 1-2
-  if (cycleway === 'track' || cycleway === 'opposite_track') {
-    return maxspeed > 50 ? 2 : 1
-  }
+  // carFree: the bike is not sharing a traffic surface with motor vehicles.
+  // Curb-separated cycle tracks next to a road count (cars are adjacent but
+  // on a different surface). `highway=track` (forest/farm track) counts as
+  // car-free because motor traffic is rare and agricultural, not transport.
+  const carFree =
+    isCycleway ||
+    isPedestrian ||
+    isTrack ||
+    bikeOnPath ||
+    bikeOnFoot ||
+    hasSeparatedTrack ||
+    explicitlyNoMotor
 
-  // Residential with low speed = LTS 1
-  if (highway === 'residential' && (maxspeed <= 30 || maxspeed === 0) && lanes <= 2) return 1
+  // bikePriority: the edge is engineered or legally designated to give bikes
+  // priority over cars. Shared surface with cars, but cars are constrained
+  // to yield or travel at walking pace. In practice, interactions are rare
+  // and predictable. Bad actors can still happen — Layer 2 city profiles
+  // may demote specific named corridors where drivers habitually misbehave
+  // (e.g. SF's Noe Slow Street).
+  const isLocalAccessOnly = tags.motor_vehicle === 'destination' || tags.motor_vehicle === 'permissive'
+  const bikePriority =
+    isBikeRoad ||                                       // Fahrradstraße / fietsstraat
+    isLivingStreet ||                                   // legally ≤ walking pace for cars
+    (isResidential && isLocalAccessOnly)                // SF Slow Street pattern
 
-  // Bike lane
-  if (cycleway === 'lane' || cycleway === 'opposite_lane') {
-    if (maxspeed <= 30 && lanes <= 2) return 2
-    if (maxspeed <= 50 && lanes <= 3) return 2
-    return 3
-  }
+  // bikeInfra: any explicit cycling facility at all.
+  const bikeInfra =
+    isCycleway ||
+    bikeOnPath ||
+    bikeOnFoot ||
+    isBikeRoad ||
+    hasSeparatedTrack ||
+    hasPaintedLane ||
+    hasBusLane
 
-  // Shared bus lane
-  if (cycleway === 'share_busway') return 2
+  // Speed: from maxspeed tag if present, otherwise from road-class defaults.
+  const speedKmh: number | null = (() => {
+    if (maxspeed > 0) return maxspeed
+    if (isCycleway || isPath || isFootway || isPedestrian) return null
+    if (isLivingStreet) return 15
+    if (isResidential) return 30
+    switch (highway) {
+      case 'unclassified': return 30
+      case 'tertiary': return 50
+      case 'secondary': return 50
+      case 'primary': return 60
+      case 'trunk': return 80
+      default: return null
+    }
+  })()
 
-  // No bike facility
-  if (highway === 'residential') {
-    if (maxspeed <= 50 && lanes <= 3) return 2
-    return 3
-  }
-  if (highway === 'tertiary') {
-    if (maxspeed <= 30) return 2
-    if (maxspeed <= 50) return 3
-    return 4
-  }
-  if (highway === 'unclassified') {
-    if (maxspeed <= 30) return 2
-    return 3
-  }
-  if (['secondary', 'primary', 'trunk'].includes(highway)) return 4
+  // Traffic density heuristic from road class. Null for car-free infra.
+  const trafficDensity: TrafficDensity | null = (() => {
+    if (isCycleway || isPath || isFootway || isPedestrian) return null
+    if (isLivingStreet || isResidential) return 'low'
+    switch (highway) {
+      case 'unclassified': return 'low'
+      case 'tertiary': return 'moderate'
+      case 'secondary': return 'moderate'
+      case 'primary': return 'high'
+      case 'trunk': return 'high'
+      default: return null
+    }
+  })()
 
-  return 3 // default for unknown
+  // Compute LTS tier using the same logic as the legacy computeLts but
+  // staying consistent with Furth's criteria.
+  const lts: LtsLevel = (() => {
+    // Car-free infrastructure = LTS 1
+    if (isCycleway || isPath || isPedestrian || isTrack) return 1
+    if (bikeOnFoot) return 1
+    if (isLivingStreet) return 1
+    if (isBikeRoad) return 1
+
+    // Separated cycle track: LTS 1 unless on a very fast road
+    if (hasSeparatedTrack) {
+      return maxspeed > 50 ? 2 : 1
+    }
+
+    // Residential with low speed and narrow = LTS 1 (Furth's "quiet mixed")
+    if (isResidential && (maxspeed <= 30 || maxspeed === 0) && lanes <= 2) return 1
+
+    // Painted bike lane
+    if (hasPaintedLane) {
+      if (maxspeed <= 30 && lanes <= 2) return 2
+      if (maxspeed <= 50 && lanes <= 3) return 2
+      return 3
+    }
+
+    // Shared bus lane
+    if (hasBusLane) return 2
+
+    // No bike facility
+    if (isResidential) {
+      if (maxspeed <= 50 && lanes <= 3) return 2
+      return 3
+    }
+    if (highway === 'tertiary') {
+      if (maxspeed <= 30) return 2
+      if (maxspeed <= 50) return 3
+      return 4
+    }
+    if (highway === 'unclassified') {
+      if (maxspeed <= 30) return 2
+      return 3
+    }
+    if (['secondary', 'primary', 'trunk'].includes(highway)) return 4
+
+    return 3 // default for unknown
+  })()
+
+  return { lts, carFree, bikePriority, bikeInfra, speedKmh, trafficDensity, surface }
+}
+
+/**
+ * Back-compat wrapper returning just the LTS tier. Use classifyEdge for
+ * new code — it returns the full classification needed by mode rules.
+ */
+export function computeLts(tags: Record<string, string>): LtsLevel {
+  return classifyEdge(tags).lts
 }
 
 export interface LtsBreakdown {

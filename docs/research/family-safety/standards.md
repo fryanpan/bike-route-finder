@@ -23,9 +23,10 @@ Both calibrate against the Dutch **CROW Design Manual**. The UK's **LTN 1/20** u
 
 ### Level of Traffic Stress (LTS)
 
+**Primary reference for implementation**: [**Peter Furth — Level of Traffic Stress criteria**](https://peterfurth.sites.northeastern.edu/level-of-traffic-stress/). This page is the definitive public-facing guide to the LTS framework and is the direct citation used in family-bike-map's `src/utils/lts.ts` classifier and the `MODE_RULES` in `src/data/modes.ts`. When in doubt about how to classify an edge, consult Furth's criteria first.
+
 - Mekuria, Furth & Nixon, [**Low-Stress Bicycling and Network Connectivity** (Mineta Transportation Institute 11-19, 2012, PDF)](https://transweb.sjsu.edu/sites/default/files/1005-low-stress-bicycling-network-connectivity.pdf) — origin paper. LTS 1 explicitly defined as "suitable for children."
 - Furth, Mekuria & Nixon, [**Network Connectivity for Low-Stress Bicycling** (TRR 2016)](https://journals.sagepub.com/doi/10.3141/2587-06).
-- Peter Furth's canonical LTS criteria page: <https://peterfurth.sites.northeastern.edu/level-of-traffic-stress/>
 - [Boston Bicycle LTS Technical Documentation (2020, PDF)](https://www.boston.gov/sites/default/files/file/2020/12/Bicycle%20Level%20of%20Traffic%20Stress%20Report%20&%20Guide%20for%20Large%20Developments.pdf) — a concrete municipal LTS implementation.
 
 LTS tiers:
