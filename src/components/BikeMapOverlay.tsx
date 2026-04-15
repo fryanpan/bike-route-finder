@@ -7,9 +7,16 @@ import { getStreetImage } from '../services/mapillary'
 import type { ClassificationRule } from '../services/rules'
 import type { OsmWay } from '../utils/types'
 
-// Max tiles allowed in viewport. Beyond this the map is too zoomed out to be
-// useful — show the "zoom in" prompt instead of firing many parallel requests.
-const MAX_VISIBLE_TILES = 12
+// Max tiles allowed in viewport. Beyond this the map is too zoomed out to
+// be useful — show the "zoom in" prompt instead of firing many parallel
+// requests. Sized to comfortably fit a metro-area view like Potsdam to
+// downtown Berlin (spans ~0.35° lng × 0.18° lat, up to 5×3 = 15 tiles) or
+// greater London (~0.5° × 0.4°, up to 6×5 = 30 tiles) at typical zoom-11
+// overview levels. The semaphore in overpass.ts caps concurrent Overpass
+// fetches to 2, so even a full 30-tile load never bursts the API — it
+// just takes ~15 sequential batches. On repeat visits the per-tile IDB
+// cache from PR #114 serves them instantly.
+const MAX_VISIBLE_TILES = 30
 
 // Canvas renderer created once at module level — shared across all polylines.
 // Canvas is 5-10x faster than SVG for many lines on mobile.
