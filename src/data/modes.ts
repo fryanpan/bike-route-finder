@@ -175,13 +175,22 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'Reads traffic, handles intersections and traffic signals, can ride a painted bike ' +
       'lane in moderate traffic without panicking. Still a kid — never LTS 3 or higher. ' +
       'Accepts Furth LTS 1 in full, plus LTS 2 conditionally: must have bike infrastructure, ' +
-      'speeds ≤30 km/h, and moderate traffic density (never busy arterials). ' +
+      'speeds ≤50 km/h, and moderate traffic density (never busy arterials). ' +
       'Avoids cobblestones — the kid is going 15+ km/h now and cobbles are jarring at speed.',
     ltsAccept: [1, 2],
     ltsConditions: {
+      // Furth's LTS 2 painted-lane criterion allows up to ~48 km/h (30 mph);
+      // we use 50 to match Berlin/European 50 km/h defaults. Earlier drafts
+      // used 30 but that broke routing in Berlin because many tertiary
+      // streets don't have maxspeed tagged, so their inferred speed falls
+      // back to the 50 km/h road-class default and fails a 30 km/h cap
+      // even when the actual LTS logic (which uses raw maxspeed=0) classified
+      // them as LTS 2. The 50 km/h cap keeps primary/trunk arterials out
+      // (they infer 60/80) while admitting typical painted-lane tertiary/
+      // secondary streets the kid can actually handle at age 8+.
       2: {
         requireBikeInfra: true,
-        maxSpeedKmh: 30,
+        maxSpeedKmh: 50,
         maxTrafficDensity: 'moderate',
       },
     },
@@ -294,12 +303,27 @@ export function applyModeRule(
     return { accepted: false, reason: `surface '${surface}' not in accepted set` }
   }
 
-  // Accepted at normal riding speed. On shared-surface bike-priority infra
-  // (Fahrradstraßen, living streets, Slow Streets) the rider is still
-  // cautious around the occasional car, so we drop to slowSpeedKmh. True
-  // car-free edges ride at the full ridingSpeedKmh.
-  const sharedSurface = lts === 1 && !carFree
-  const speedKmh = sharedSurface ? rule.slowSpeedKmh : rule.ridingSpeedKmh
+  // Speed selection for accepted LTS 1 edges.
+  //
+  // Fahrradstraßen, living streets, and SF-style Slow Streets are shared
+  // surfaces in the strict sense (cars are present) but are ENGINEERED to
+  // give bikes priority — drivers are guests, speed limits are low, and
+  // enforcement culture treats cyclists as having right-of-way. The rider
+  // should ride them at full cruising speed, not cautiously, because the
+  // whole point of the infrastructure is that the occasional car yields.
+  //
+  // Ordinary quiet residential (Furth LTS 1 mixed traffic: ≤30 km/h, low
+  // volume, 2-lane, no bike-priority designation) is different: cars are
+  // not legally required to yield, just statistically rare. The rider
+  // stays alert and rides at a cautious pace there.
+  //
+  // So the slowdown only applies when the edge is neither car-free NOR
+  // bike-prioritized. Earlier drafts applied it to ALL shared-surface
+  // LTS 1, which made Fahrradstraßen ride 2× slower than cycleways and
+  // broke the routing intent ("prefer Fahrradstraßen" → "detour onto any
+  // cycleway to avoid Fahrradstraßen").
+  const needsCaution = lts === 1 && !carFree && !classification.bikePriority
+  const speedKmh = needsCaution ? rule.slowSpeedKmh : rule.ridingSpeedKmh
 
   return { accepted: true, speedKmh, isWalking: false }
 }
