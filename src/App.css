@@ -1791,7 +1791,12 @@ button { font-family: inherit; cursor: pointer; }
  * Click any thumbnail → lightbox with prev/next arrows + swipe.
  */
 
-.st { padding: 0 2px; }
+.st {
+  padding: 8px 16px;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .st-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .st-label { font-size: 12px; font-weight: 600; color: #374151; white-space: nowrap; }
 
