@@ -19,13 +19,70 @@ import type { OsmWay } from '../src/utils/types'
 const OVERPASS_URL = 'https://bike-map.fryanpan.com/api/overpass'
 const TILE_DEGREES = 0.1
 
-// All 5 modes after the Layer 1.5 refactor. External engines (Valhalla /
-// BRouter) are mode-blind, so they're compared against a single reference
-// mode (kid-confident) — the per-mode client comparison is the meaningful
-// signal after the mode-rules work.
+// All 5 modes after the Layer 1.5 refactor.
 const MODES = ['kid-starting-out', 'kid-confident', 'kid-traffic-savvy', 'carrying-kid', 'training'] as const
-const REFERENCE_MODE = 'kid-confident'
 type ModeKey = typeof MODES[number]
+
+// External engines (Valhalla, BRouter) don't know about our modes, but
+// each engine has its own tunable profile. For the head-to-head we pick
+// the closest-matching profile for each of our modes, so we're always
+// comparing our router's kid-X mode against the BEST each engine can do
+// for that same rider. The returned route is scored against our mode's
+// preferred-item set either way.
+interface ValhallaCostingOptions {
+  bicycle_type: 'Road' | 'Hybrid' | 'Cross' | 'Mountain'
+  cycling_speed: number
+  use_roads: number          // 0 = avoid, 1 = prefer
+  use_hills: number
+  avoid_bad_surfaces: number // 0 = ignore, 1 = strongly avoid
+  use_living_streets: number // 0 = avoid, 1 = strongly prefer
+  use_ferry: number
+}
+const VALHALLA_PROFILES: Record<ModeKey, ValhallaCostingOptions> = {
+  // Slowest, most car-avoidant. Hybrid tires for paving stones.
+  'kid-starting-out': {
+    bicycle_type: 'Hybrid', cycling_speed: 5,
+    use_roads: 0.0, avoid_bad_surfaces: 0.9,
+    use_living_streets: 1.0, use_hills: 0.1, use_ferry: 0.0,
+  },
+  // Still maximally car-avoidant but a bit faster and tolerates paving.
+  'kid-confident': {
+    bicycle_type: 'Hybrid', cycling_speed: 10,
+    use_roads: 0.05, avoid_bad_surfaces: 0.6,
+    use_living_streets: 1.0, use_hills: 0.2, use_ferry: 0.0,
+  },
+  // Will take painted lanes, still prefers quieter streets.
+  'kid-traffic-savvy': {
+    bicycle_type: 'Hybrid', cycling_speed: 15,
+    use_roads: 0.3, avoid_bad_surfaces: 0.5,
+    use_living_streets: 0.7, use_hills: 0.3, use_ferry: 0.0,
+  },
+  // Trailer/cargo: smooth surfaces matter, moderate speed, avoid roads
+  // but not to the point of absurd detours.
+  'carrying-kid': {
+    bicycle_type: 'Hybrid', cycling_speed: 15,
+    use_roads: 0.2, avoid_bad_surfaces: 0.9,
+    use_living_streets: 0.7, use_hills: 0.4, use_ferry: 0.0,
+  },
+  // Fast adult road bike — fine on roads, avoids rough surface, flows.
+  'training': {
+    bicycle_type: 'Road', cycling_speed: 25,
+    use_roads: 0.6, avoid_bad_surfaces: 0.8,
+    use_living_streets: 0.3, use_hills: 0.3, use_ferry: 0.0,
+  },
+}
+
+// BRouter has a small set of pre-built profiles hosted on brouter.de.
+// "safety" — max avoidance of traffic (family / kid)
+// "trekking" — general touring, balanced
+// "fastbike" — fast road cycling, prefers good surfaces and flow
+const BROUTER_PROFILES: Record<ModeKey, string> = {
+  'kid-starting-out':  'safety',
+  'kid-confident':     'safety',
+  'kid-traffic-savvy': 'trekking',
+  'carrying-kid':      'trekking',
+  'training':          'fastbike',
+}
 
 // ── Tile fetching (via Cloudflare Worker proxy with 30-day cache) ────────
 
@@ -142,7 +199,7 @@ interface RouteResult {
   walkingPct: number
 }
 
-async function valhallaRoute(startLat: number, startLng: number, endLat: number, endLng: number, allWays: OsmWay[], profileKey: string, preferred: Set<string>): Promise<RouteResult | null> {
+async function valhallaRoute(startLat: number, startLng: number, endLat: number, endLng: number, allWays: OsmWay[], profileKey: ModeKey, preferred: Set<string>): Promise<RouteResult | null> {
   const body = {
     locations: [
       { lat: startLat, lon: startLng },
@@ -150,15 +207,7 @@ async function valhallaRoute(startLat: number, startLng: number, endLat: number,
     ],
     costing: 'bicycle',
     costing_options: {
-      bicycle: {
-        bicycle_type: 'Hybrid',
-        cycling_speed: 6,
-        use_roads: 0.0,
-        avoid_bad_surfaces: 0.5,
-        use_hills: 0.1,
-        use_ferry: 0.0,
-        use_living_streets: 1.0,
-      },
+      bicycle: VALHALLA_PROFILES[profileKey],
     },
     directions_options: { units: 'km', language: 'en-US' },
   }
@@ -205,9 +254,10 @@ async function valhallaRoute(startLat: number, startLng: number, endLat: number,
 
 // ── BRouter routing ──────────────────────────────────────────────────────
 
-async function brouterRoute(startLat: number, startLng: number, endLat: number, endLng: number, allWays: OsmWay[], profileKey: string, preferred: Set<string>): Promise<RouteResult | null> {
+async function brouterRoute(startLat: number, startLng: number, endLat: number, endLng: number, allWays: OsmWay[], profileKey: ModeKey, preferred: Set<string>): Promise<RouteResult | null> {
   try {
-    const url = `https://brouter.de/brouter?lonlats=${startLng},${startLat}|${endLng},${endLat}&profile=safety&alternativeidx=0&format=geojson`
+    const brouterProfile = BROUTER_PROFILES[profileKey]
+    const url = `https://brouter.de/brouter?lonlats=${startLng},${startLat}|${endLng},${endLat}&profile=${brouterProfile}&alternativeidx=0&format=geojson`
     const resp = await fetch(url)
     if (!resp.ok) return null
     const data = await resp.json() as any
@@ -219,7 +269,7 @@ async function brouterRoute(startLat: number, startLng: number, endLat: number, 
     const { preferredPct } = scoreRouteCoords(coords, allWays, profileKey, preferred)
 
     return {
-      engine: 'brouter-safety',
+      engine: `brouter-${brouterProfile}`,
       distance: props['track-length'] / 1000,
       duration: props['total-time'] / 60,
       preferredPct,
@@ -308,19 +358,23 @@ async function main() {
     console.log(`  Routes found: ${found}/${pairs.length}`)
   }
 
-  // External routers (Valhalla / BRouter) scored against the reference mode only.
-  interface ExtRow { pair: string; valhalla: RouteResult | null; brouter: RouteResult | null }
+  // External routers (Valhalla / BRouter) called per mode with the
+  // best-matching profile for that mode. Scored against the SAME mode's
+  // preferred-item set, so client vs external is apples-to-apples.
+  interface ExtRow { mode: ModeKey; pair: string; valhalla: RouteResult | null; brouter: RouteResult | null }
   const extRows: ExtRow[] = []
   if (!skipExternal) {
-    const refPreferred = getDefaultPreferredItems(REFERENCE_MODE)
-    console.log(`\n=== External routers (scored against ${REFERENCE_MODE}) ===\n`)
-    for (const { origin, dest } of pairs) {
-      console.log(`${origin.label} -> ${dest.label}`)
-      const valhalla = await valhallaRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays, REFERENCE_MODE, refPreferred)
-      await new Promise((r) => setTimeout(r, 2000))
-      const brouter = await brouterRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays, REFERENCE_MODE, refPreferred)
-      await new Promise((r) => setTimeout(r, 2000))
-      extRows.push({ pair: `${origin.label} -> ${dest.label}`, valhalla, brouter })
+    for (const mode of MODES) {
+      const preferred = getDefaultPreferredItems(mode)
+      console.log(`\n=== External routers for ${mode} (Valhalla profile=${VALHALLA_PROFILES[mode].bicycle_type}/cs${VALHALLA_PROFILES[mode].cycling_speed}, BRouter=${BROUTER_PROFILES[mode]}) ===\n`)
+      for (const { origin, dest } of pairs) {
+        console.log(`  ${origin.label} -> ${dest.label}`)
+        const valhalla = await valhallaRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays, mode, preferred)
+        await new Promise((r) => setTimeout(r, 2000))
+        const brouter  = await brouterRoute(origin.lat, origin.lng, dest.lat, dest.lng, allWays, mode, preferred)
+        await new Promise((r) => setTimeout(r, 2000))
+        extRows.push({ mode, pair: `${origin.label} -> ${dest.label}`, valhalla, brouter })
+      }
     }
   }
 
@@ -353,13 +407,60 @@ async function main() {
   }
 
   if (!skipExternal) {
-    console.log('\n=== CLIENT (kid-confident) vs VALHALLA vs BROUTER ===\n')
-    for (const ext of extRows) {
-      const clientRow = modeRows.find((r) => r.mode === REFERENCE_MODE && r.pair === ext.pair)
-      const c = clientRow?.found ? `${(clientRow.preferredPct * 100).toFixed(0)}%` : 'FAIL'
-      const v = ext.valhalla ? `${(ext.valhalla.preferredPct * 100).toFixed(0)}%` : 'FAIL'
-      const b = ext.brouter ? `${(ext.brouter.preferredPct * 100).toFixed(0)}%` : 'FAIL'
-      console.log(`${ext.pair}: client=${c} valhalla=${v} brouter=${b}`)
+    // Per-mode averages — client vs Valhalla vs BRouter, all scored against
+    // that mode's preferred set.
+    console.log('\n=== EXTERNAL ROUTER SUMMARY (per mode) ===\n')
+    console.log('| Mode | Client found | Valhalla found | BRouter found | Client avg | Valhalla avg | BRouter avg |')
+    console.log('|------|:---:|:---:|:---:|:---:|:---:|:---:|')
+    for (const mode of MODES) {
+      const client = modeRows.filter((r) => r.mode === mode && r.found)
+      const ext = extRows.filter((r) => r.mode === mode)
+      const vOk = ext.filter((r) => r.valhalla).map((r) => r.valhalla!.preferredPct)
+      const bOk = ext.filter((r) => r.brouter).map((r) => r.brouter!.preferredPct)
+      console.log(
+        `| ${mode} | ${client.length}/${pairs.length} | ${vOk.length}/${pairs.length} | ${bOk.length}/${pairs.length} | ${(avg(client.map((r) => r.preferredPct)) * 100).toFixed(0)}% | ${(avg(vOk) * 100).toFixed(0)}% | ${(avg(bOk) * 100).toFixed(0)}% |`
+      )
+    }
+
+    // Head-to-head counts per mode (wins / ties / losses for client vs each).
+    console.log('\n=== HEAD-TO-HEAD (client vs external, per mode) ===\n')
+    console.log('| Mode | vs Valhalla (W/T/L) | vs BRouter (W/T/L) |')
+    console.log('|------|:---:|:---:|')
+    for (const mode of MODES) {
+      let vW = 0, vT = 0, vL = 0
+      let bW = 0, bT = 0, bL = 0
+      for (const ext of extRows.filter((r) => r.mode === mode)) {
+        const client = modeRows.find((r) => r.mode === mode && r.pair === ext.pair)
+        if (!client?.found) continue
+        const cp = client.preferredPct
+        if (ext.valhalla) {
+          const d = cp - ext.valhalla.preferredPct
+          if      (d >  0.05) vW++
+          else if (d < -0.05) vL++
+          else                vT++
+        }
+        if (ext.brouter) {
+          const d = cp - ext.brouter.preferredPct
+          if      (d >  0.05) bW++
+          else if (d < -0.05) bL++
+          else                bT++
+        }
+      }
+      console.log(`| ${mode} | ${vW}/${vT}/${vL} | ${bW}/${bT}/${bL} |`)
+    }
+
+    // Per-pair table per mode.
+    for (const mode of MODES) {
+      console.log(`\n=== ${mode} — per route ===\n`)
+      console.log('| Pair | Client | Valhalla | BRouter |')
+      console.log('|------|:---:|:---:|:---:|')
+      for (const ext of extRows.filter((r) => r.mode === mode)) {
+        const client = modeRows.find((r) => r.mode === mode && r.pair === ext.pair)
+        const c = client?.found ? `${(client.preferredPct * 100).toFixed(0)}%` : 'FAIL'
+        const v = ext.valhalla ? `${(ext.valhalla.preferredPct * 100).toFixed(0)}%` : 'FAIL'
+        const b = ext.brouter ? `${(ext.brouter.preferredPct * 100).toFixed(0)}%` : 'FAIL'
+        console.log(`| ${ext.pair} | ${c} | ${v} | ${b} |`)
+      }
     }
   }
 }
