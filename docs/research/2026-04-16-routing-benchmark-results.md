@@ -52,50 +52,72 @@ mode effectively mixed behaviors from several of the new modes. The
 relevant reference for "same coverage as before" is kid-traffic-savvy,
 which beats the old toddler benchmark substantially.
 
-## vs. Valhalla + BRouter-safety (kid-confident reference mode)
+## vs. Valhalla + BRouter (per-mode, best-effort profiles)
 
-Both external engines are mode-blind; they're scored against
-kid-confident's preferred set as the closest analog to "family with
-kid" routing. Both Home → Humboldt Forum (Valhalla failed) and both
-SSE Schwimmhalle pairs (client failed, outside tile bbox) are excluded
-from the head-to-head.
+External engines are mode-blind, but each engine has tunable profiles.
+For this benchmark we call each engine with the closest-matching profile
+for each of our modes, then score the returned route against the same
+mode's preferred-item set. Client vs external is apples-to-apples per
+mode.
 
-| Engine | Avg preferred % | Wins | Ties | Losses (vs client) |
-|--------|:---:|:---:|:---:|:---:|
-| **Client (kid-confident)** | **58%** | — | — | — |
-| Valhalla (bicycle, use_roads=0.0) | 38% | 1 | 3 | 14 |
-| BRouter (safety profile) | 40% | 3 | 3 | 13 |
+**Per-mode settings used:**
 
-Client averages 18–20 percentage points more preferred infrastructure
-than either off-the-shelf engine, and wins 14/18 head-to-head against
-Valhalla and 13/19 against BRouter. The losses are clustered on short
-routes (2–3 km) where an alternative engine finds a more direct
-painted-lane — acceptable at the kid-traffic-savvy level but not the
-kid-confident level the client is routing for.
+| Mode | Valhalla profile | BRouter profile |
+|---|---|---|
+| kid-starting-out | Hybrid, 5 km/h, use_roads=0.0, avoid_bad_surfaces=0.9, use_living_streets=1.0 | `safety` |
+| kid-confident | Hybrid, 10 km/h, use_roads=0.05, avoid_bad_surfaces=0.6, use_living_streets=1.0 | `safety` |
+| kid-traffic-savvy | Hybrid, 15 km/h, use_roads=0.3, avoid_bad_surfaces=0.5, use_living_streets=0.7 | `trekking` |
+| carrying-kid | Hybrid, 15 km/h, use_roads=0.2, avoid_bad_surfaces=0.9, use_living_streets=0.7 | `trekking` |
+| training | Road, 25 km/h, use_roads=0.6, avoid_bad_surfaces=0.8, use_living_streets=0.3 | `fastbike` |
 
-Comparing to the 2026-04-11 toddler-mode benchmark, client preferred
-% is now **58% (up from 54%)**, Valhalla is **38% (vs 35%)**, and
-BRouter is **40% (vs 39%)**. External engine numbers drift slightly
-because their test destinations moved (we added two extra pairs). The
-client improvement is real — it comes from the bridge-walk restoration
-opening up Fahrradstraße corridors that were previously inaccessible.
+**Per-mode averages** (avg preferred % over 20–22 pairs per mode):
 
-### Head-to-head: client vs Valhalla
+| Mode | Client found | Valhalla found | BRouter found | **Client** | Valhalla | BRouter |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|
+| kid-starting-out | 20/22 | 22/22 | 22/22 | **52%** | 34% | 35% |
+| kid-confident | 20/22 | 22/22 | 22/22 | **58%** | 37% | 40% |
+| kid-traffic-savvy | 20/22 | 20/22 | 22/22 | **88%** | 76% | 75% |
+| carrying-kid | 20/22 | 22/22 | 22/22 | **89%** | 72% | 72% |
+| training | 20/22 | 22/22 | 22/22 | **89%** | 75% | 73% |
+
+**Head-to-head** (W/T/L, ties within ±5pp):
+
+| Mode | vs Valhalla | vs BRouter |
+|------|:---:|:---:|
+| kid-starting-out | 12/5/3 | 16/0/4 |
+| kid-confident | 15/4/1 | 14/3/3 |
+| kid-traffic-savvy | 15/2/1 | 15/4/1 |
+| carrying-kid | 18/2/0 | 17/3/0 |
+| training | 17/3/0 | 16/3/1 |
+
+Client wins by 13–18 percentage points across every mode. The tightest
+gap is kid-traffic-savvy, where external "trekking" profiles do find
+legitimate painted-lane routes at a ~12pp deficit. The widest gaps are
+carrying-kid and training — the adult modes where speed-based costing
+compounds most cleanly across long routes, and where external engines
+blunder onto arterials the speed model would have priced out.
+
+The two pairs the client FAILs on (SSE Schwimmhalle × 2) are outside
+the benchmark's Berlin tile bbox, not a routing failure; the external
+engines get global data and succeed. Widening the benchmark bbox is
+follow-up work.
+
+### Head-to-head: client vs Valhalla (kid-confident)
 
 | Route | Client | Valhalla | Δ |
 |-------|:---:|:---:|:---:|
-| Home → Berlin Zoo | 81% | 65% | ✅ +16 |
+| Home → Berlin Zoo | 81% | 28% | ✅ +53 |
 | Home → Hamburger Bahnhof | 48% | 18% | ✅ +30 |
-| Home → Alexanderplatz | 40% | 27% | ✅ +13 |
+| Home → Alexanderplatz | 40% | 25% | ✅ +15 |
 | Home → Fischerinsel | 42% | 15% | ✅ +27 |
-| Home → Humboldt Forum | 42% | FAIL | ✅ n/a |
+| Home → Humboldt Forum | 42% |  2% | ✅ +40 |
 | Home → Nonne und Zwerg | 53% | 53% | ➖ 0 |
 | Home → Stadtbad Neukölln | 53% | 49% | ➖ +4 |
 | Home → Garten der Welt | 82% | 73% | ✅ +9 |
 | Home → Ararat Bergmannstr | 72% | 72% | ➖ 0 |
-| School → Berlin Zoo | 78% | 13% | ✅ +65 |
+| School → Berlin Zoo | 78% | 15% | ✅ +63 |
 | School → Hamburger Bahnhof | 42% | 14% | ✅ +28 |
-| School → Alexanderplatz | 27% | 40% | ❌ −13 |
+| School → Alexanderplatz | 27% | 37% | ❌ −10 |
 | School → Fischerinsel | 29% | 20% | ✅ +9 |
 | School → Humboldt Forum | 32% | 15% | ✅ +17 |
 | School → Nonne und Zwerg | 77% | 45% | ✅ +32 |
