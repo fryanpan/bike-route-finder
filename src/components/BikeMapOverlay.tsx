@@ -96,7 +96,8 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
     lg.clearLayers()
 
     // Reduce overlay line weight when a route is shown so the route stands out.
-    const overlayWeight = hasRoute ? 3 : 5
+    // Minimum 5 even with route — thinner lines are untappable on mobile.
+    const overlayWeight = hasRoute ? 5 : 7
 
     for (const way of ways) {
       const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)

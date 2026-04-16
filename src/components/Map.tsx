@@ -310,7 +310,7 @@ function RouteSuggestions({ route, profileKey, preferredItemNames, regionRules, 
           key={`suggest-${way.osmId ?? i}`}
           positions={way.coordinates}
           color="#10b981"
-          weight={8}
+          weight={10}
           opacity={0.5}
           eventHandlers={{
             click: (e) => {
@@ -423,7 +423,7 @@ export default function Map({
             key={`alt-${i}`}
             positions={altRoute.coordinates}
             color="#64748b"
-            weight={8}
+            weight={10}
             opacity={0.6}
             dashArray="10 6"
             eventHandlers={onSelectRoute ? {
