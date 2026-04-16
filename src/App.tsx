@@ -11,13 +11,8 @@ import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import { DEFAULT_PROFILES } from './data/profiles'
 import { scoreRoute } from './services/routeScorer'
-import { clientRoute, prefetchTiles } from './services/clientRouter'
-import {
-  isLocationCached, detectRegion, saveRegion, loadRegion,
-  getAllRegions, deleteRegion, bboxFromCenter, estimateTiles,
-  type CachedRegion,
-} from './services/tileCache'
-import { injectCachedTile, latLngToTile, tileKey, primeInMemoryCacheFromIdb } from './services/overpass'
+import { clientRoute } from './services/clientRouter'
+import { primeInMemoryCacheFromIdb } from './services/overpass'
 import { logRoute } from './services/routeLog'
 import { reverseGeocode } from './services/geocoding'
 import {
@@ -141,46 +136,6 @@ async function resolveCurrentLocation(): Promise<Place | null> {
   })
 }
 
-const TILE_DEGREES = 0.1
-
-/** Inject OsmWay[] from a cached region into the in-memory overpass tile cache. */
-function injectRegionIntoTileCache(
-  ways: OsmWay[],
-  bbox: { south: number; west: number; north: number; east: number },
-): void {
-  // Group ways by tile
-  // Group ways by tile. Use a plain object instead of Map to avoid shadowed Map.
-  const tileMap: Record<string, OsmWay[]> = {}
-  const minRow = Math.floor(bbox.south / TILE_DEGREES)
-  const maxRow = Math.floor(bbox.north / TILE_DEGREES)
-  const minCol = Math.floor(bbox.west / TILE_DEGREES)
-  const maxCol = Math.floor(bbox.east / TILE_DEGREES)
-
-  // Initialize all tiles in the bbox (even empty ones) so the router
-  // doesn't try to fetch them from Overpass
-  for (let r = minRow; r <= maxRow; r++) {
-    for (let c = minCol; c <= maxCol; c++) {
-      tileMap[tileKey(r, c)] = []
-    }
-  }
-
-  // Assign each way to its tile based on first coordinate
-  for (const way of ways) {
-    if (way.coordinates.length === 0) continue
-    const [lat, lng] = way.coordinates[0]
-    const tile = latLngToTile(lat, lng)
-    const key = tileKey(tile.row, tile.col)
-    if (tileMap[key]) tileMap[key].push(way)
-    else tileMap[key] = [way]
-  }
-
-  // Inject into the in-memory cache
-  for (const key of Object.keys(tileMap)) {
-    const [rowStr, colStr] = key.split(':')
-    injectCachedTile(parseInt(rowStr), parseInt(colStr), tileMap[key])
-  }
-}
-
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileMap>(loadProfiles)
 
@@ -227,13 +182,7 @@ export default function App() {
 
   // Tile cache state. The client router lazy-fetches tiles on demand, so
   // there is no longer an "auto-show download banner" flow. Power users can
-  // still pre-cache a region explicitly via the viewport selection UI.
-  const [tileCacheProgress, setTileCacheProgress] = useState<number | null>(null)
   const tileCacheCheckedRef = useRef(false)
-
-  // Cache viewport selection mode (Google Maps-style frame)
-  const [cacheSelecting, setCacheSelecting] = useState(false)
-  const [cachedRegions, setCachedRegions] = useState<CachedRegion[]>([])
 
   // Detect which city preset the map center falls within
   useEffect(() => {
@@ -250,16 +199,10 @@ export default function App() {
     }
   }, [currentLocation, activeRegion])
 
-  // On app load: if the current location is inside a cached region, load
-  // those tiles from IndexedDB into the in-memory cache so the display
-  // overlay renders instantly. If the region is NOT cached, do nothing —
-  // the client router will lazy-fetch tiles as needed when the user
-  // searches or routes. Power users can still pre-cache regions explicitly
-  // via the "download area" button in the bike-layer controls.
-  //
-  // Also primes the in-memory cache from the lazy per-tile IndexedDB store
-  // (src/services/tileStore.ts), so any tile the user has visited in the
-  // last 30 days is available instantly on this session's first render.
+  // On app load: prime the in-memory cache from the lazy per-tile
+  // IndexedDB store (src/services/tileStore.ts), so any tile the user
+  // has visited in the last 30 days is available instantly on this
+  // session's first render.
   //
   // The overlay is gated on idbReady — it only starts fetching once the
   // per-tile IDB prime has finished (or failed), so OverlayController's
@@ -269,92 +212,16 @@ export default function App() {
     if (tileCacheCheckedRef.current) return
     tileCacheCheckedRef.current = true
 
-    const loc = currentLocation ?? { lat: 52.52, lng: 13.405 }
     void (async () => {
       try {
-        // Prime the per-tile IDB store FIRST so the in-memory cache is warm
-        // before the overlay's mount effect fires.
         await primeInMemoryCacheFromIdb()
-
-        // Also load any whole-region snapshot the location falls into. This
-        // is the legacy "Download area" feature — still supported for power
-        // users even though the banner prompt is gone.
-        const { cached, regionName } = await isLocationCached(loc.lat, loc.lng, 2)
-        if (cached && regionName) {
-          const region = await loadRegion(regionName)
-          if (region) {
-            injectRegionIntoTileCache(region.ways, region.bbox)
-          }
-        }
       } catch {
         // IndexedDB failure is non-critical
       } finally {
-        // Always flip the gate — even on IDB failure, the overlay should
-        // work via lazy network fetch. The tileStore code paths are all
-        // wrapped in try/catch so this finally just releases the UI.
         setIdbReady(true)
       }
     })()
-  }, [currentLocation]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load cached regions list on mount
-  useEffect(() => {
-    getAllRegions().then((regions) => {
-      // Strip ways for lightweight state (only need name + bbox + savedAt)
-      setCachedRegions(regions.map((r) => ({ ...r, ways: [] })))
-    }).catch(() => { /* ignore */ })
-  }, [])
-
-  function refreshCachedRegionsList() {
-    getAllRegions().then((regions) => {
-      setCachedRegions(regions.map((r) => ({ ...r, ways: [] })))
-    }).catch(() => { /* ignore */ })
-  }
-
-  /** Handle viewport cache confirm: download tiles for the selected bbox. */
-  async function handleCacheConfirm(bbox: { south: number; west: number; north: number; east: number }) {
-    setCacheSelecting(false)
-    setTileCacheProgress(0)
-
-    const centerLat = (bbox.south + bbox.north) / 2
-    const centerLng = (bbox.west + bbox.east) / 2
-    const detected = detectRegion(centerLat, centerLng)
-    const regionName = detected.name
-
-    try {
-      const ways = await prefetchTiles(bbox, (pct) => setTileCacheProgress(pct))
-      await saveRegion(regionName, bbox, ways)
-      injectRegionIntoTileCache(ways, bbox)
-      refreshCachedRegionsList()
-    } catch {
-      // Download failure is non-critical
-    } finally {
-      setTileCacheProgress(null)
-    }
-  }
-
-  /** Handle delete of a cached region. */
-  async function handleDeleteRegion(name: string) {
-    try {
-      await deleteRegion(name)
-      refreshCachedRegionsList()
-    } catch { /* ignore */ }
-  }
-
-  /** Handle refresh of a cached region: re-download tiles. */
-  async function handleRefreshRegion(
-    name: string,
-    bbox: { south: number; west: number; north: number; east: number },
-  ) {
-    setTileCacheProgress(0)
-    try {
-      const ways = await prefetchTiles(bbox, (pct) => setTileCacheProgress(pct))
-      await saveRegion(name, bbox, ways)
-      injectRegionIntoTileCache(ways, bbox)
-      refreshCachedRegionsList()
-    } catch { /* ignore */ }
-    finally { setTileCacheProgress(null) }
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived: has the user customized their travel mode's preferred path types?
   const isCustomTravelMode = !setsEqual(preferredItemNames, getDefaultPreferredItems(selectedProfile))
@@ -702,12 +569,6 @@ export default function App() {
             showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}
             regionRules={regionRules}
-            cacheSelecting={cacheSelecting}
-            onCacheConfirm={handleCacheConfirm}
-            onCacheCancel={() => setCacheSelecting(false)}
-            cachedRegions={cachedRegions}
-            onDeleteRegion={handleDeleteRegion}
-            onRefreshRegion={handleRefreshRegion}
           />
         </Suspense>
 
@@ -737,7 +598,7 @@ export default function App() {
           />
         </div>
 
-        {/* Bike layer status + audit gear + download area button */}
+        {/* Bike layer status + audit gear */}
         <div className="map-bike-layer-toggle">
           <div className="map-bike-layer-buttons">
             <button
@@ -747,28 +608,9 @@ export default function App() {
             >
               ⚙️
             </button>
-            {!cacheSelecting && (
-              <button
-                className="cache-download-btn"
-                onClick={() => setCacheSelecting(true)}
-                title="Download area for offline use"
-              >
-                📥
-              </button>
-            )}
           </div>
-          {overlayStatusMsg && !cacheSelecting && <p className="bike-layer-status">{overlayStatusMsg}</p>}
+          {overlayStatusMsg && <p className="bike-layer-status">{overlayStatusMsg}</p>}
         </div>
-
-        {/* Tile cache download progress */}
-        {tileCacheProgress !== null && (
-          <div className="download-banner">
-            <p className="download-banner-text">Downloading cycling data... {tileCacheProgress}%</p>
-            <div className="download-banner-progress">
-              <div className="download-banner-fill" style={{ width: `${tileCacheProgress}%` }} />
-            </div>
-          </div>
-        )}
 
         {/* --- Floating UI card (changes per uiState) --- */}
 

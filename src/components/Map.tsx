@@ -4,10 +4,7 @@ import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap, useMapEvent
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
 import { getVisibleTiles, getCachedTile, classifyOsmTagsToItem } from '../services/overpass'
 import BikeMapOverlay from './BikeMapOverlay'
-import CacheDrawOverlay from './CacheDrawOverlay'
-import CachedRegionsLayer from './CachedRegionsLayer'
 import type { ClassificationRule } from '../services/rules'
-import type { CachedRegion } from '../services/tileCache'
 import type { Place, Route, RouteSegment, OsmWay } from '../utils/types'
 
 // Fix Leaflet default icons broken by Vite's asset bundling
@@ -371,14 +368,6 @@ interface Props {
   regionRules?: ClassificationRule[]
   onSelectRoute?: (index: number) => void
   onAddWaypoint?: (lat: number, lng: number) => void
-  // Cache viewport selection (Google Maps-style)
-  cacheSelecting?: boolean
-  onCacheConfirm?: (bbox: { south: number; west: number; north: number; east: number }) => void
-  onCacheCancel?: () => void
-  // Cached regions display
-  cachedRegions?: CachedRegion[]
-  onDeleteRegion?: (name: string) => void
-  onRefreshRegion?: (name: string, bbox: CachedRegion['bbox']) => void
 }
 
 export default function Map({
@@ -399,12 +388,6 @@ export default function Map({
   regionRules,
   onSelectRoute,
   onAddWaypoint,
-  cacheSelecting = false,
-  onCacheConfirm,
-  onCacheCancel,
-  cachedRegions = [],
-  onDeleteRegion,
-  onRefreshRegion,
 }: Props) {
   return (
     <MapContainer
@@ -504,22 +487,6 @@ export default function Map({
         />
       )}
 
-      {/* Viewport-based cache download overlay */}
-      {cacheSelecting && onCacheConfirm && onCacheCancel && (
-        <CacheDrawOverlay
-          onConfirm={onCacheConfirm}
-          onCancel={onCacheCancel}
-        />
-      )}
-
-      {/* Cached region bounding boxes */}
-      {cachedRegions.length > 0 && onDeleteRegion && onRefreshRegion && (
-        <CachedRegionsLayer
-          regions={cachedRegions}
-          onDelete={onDeleteRegion}
-          onRefresh={onRefreshRegion}
-        />
-      )}
     </MapContainer>
   )
 }
