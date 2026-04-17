@@ -57,6 +57,7 @@ interface EdgeData {
   distance: number  // metres
   cost: number      // weighted cost for A*
   wayTags: Record<string, string>
+  wayId: number     // OSM way id — used by tap-to-avoid to identify the source way
   isWalking: boolean
 }
 
@@ -187,6 +188,7 @@ export function buildRoutingGraph(
   preferredItemNames: Set<string>,
   regionRules?: ClassificationRule[],
   regionProfile?: RegionProfile | null,
+  avoidedWayIds?: Set<number> | null,
 ): Graph<NodeData, EdgeData> {
   const graph = createGraph<NodeData, EdgeData>()
   const rule = resolveRule(profileKey)
@@ -194,6 +196,10 @@ export function buildRoutingGraph(
   for (const way of ways) {
     const coords = way.coordinates
     if (coords.length < 2) continue
+    // User-requested avoid list — the edge isn't added to the graph at
+    // all (not even as a bridge-walk). Used for in-route "reroute around
+    // this segment" requests.
+    if (avoidedWayIds && avoidedWayIds.has(way.osmId)) continue
 
     const tags = way.tags
     const walkingOnly = isWalkingOnly(tags)
@@ -267,7 +273,7 @@ export function buildRoutingGraph(
 
       const dist = haversineM(lat1, lng1, lat2, lng2)
       const cost = dist / speed  // cost = time in seconds
-      const edgeData: EdgeData = { distance: dist, cost, wayTags: tags, isWalking }
+      const edgeData: EdgeData = { distance: dist, cost, wayTags: tags, wayId: way.osmId, isWalking }
 
       // Forward edge (always)
       graph.addLink(id1, id2, edgeData)
@@ -382,7 +388,13 @@ export function routeOnGraph(
   let totalDistance = 0
   let walkingDistance = 0
   let totalTime = 0
-  const classified: Array<{ itemName: string | null; coord: [number, number]; isWalking?: boolean }> = []
+  interface ClassifiedPoint {
+    itemName: string | null
+    coord: [number, number]
+    isWalking?: boolean
+    wayId?: number  // null on the first point (no inbound edge)
+  }
+  const classified: ClassifiedPoint[] = []
 
   for (let i = 0; i < nodes.length; i++) {
     if (i === 0) {
@@ -403,6 +415,7 @@ export function routeOnGraph(
         itemName,
         coord: [currNode.data.lat, currNode.data.lng],
         isWalking: link.data.isWalking,
+        wayId: link.data.wayId,
       })
     } else {
       classified.push({ itemName: null, coord: [currNode.data.lat, currNode.data.lng] })
@@ -418,12 +431,20 @@ export function routeOnGraph(
   }))
   const rawSegments = buildSegments(segmentInput)
 
-  // Post-process: restore real itemName, set isWalking flag, heal intersection gaps
+  // Post-process: restore real itemName, set isWalking flag, heal gaps,
+  // attach wayIds per segment (for tap-to-avoid). wayIds are derived by
+  // matching classified points back onto the coalesced segments.
   const restoredSegments: RouteSegment[] = rawSegments.map((seg) => {
-    if (seg.itemName === WALK_MARKER) {
-      return { ...seg, itemName: null, isWalking: true }
+    const base: RouteSegment = seg.itemName === WALK_MARKER
+      ? { ...seg, itemName: null, isWalking: true }
+      : seg
+    // Collect wayIds by matching segment coords to classified points.
+    const wayIds = new Set<number>()
+    for (const coord of seg.coordinates) {
+      const cp = classified.find((c) => c.coord[0] === coord[0] && c.coord[1] === coord[1])
+      if (cp?.wayId != null) wayIds.add(cp.wayId)
     }
-    return seg
+    return { ...base, wayIds: [...wayIds] }
   })
   const segments = healSegmentGaps(restoredSegments, preferredItemNames)
 
@@ -527,6 +548,7 @@ export async function clientRoute(
   preferredItemNames: Set<string>,
   regionRules?: ClassificationRule[],
   regionProfile?: RegionProfile | null,
+  avoidedWayIds?: Set<number> | null,
 ): Promise<Route | null> {
   // Collect ways from cached tiles covering the corridor
   const tiles = getTilesForCorridor(startLat, startLng, endLat, endLng)
@@ -547,7 +569,7 @@ export async function clientRoute(
 
   if (allWays.length === 0) return null
 
-  const graph = buildRoutingGraph(allWays, profileKey, preferredItemNames, regionRules, regionProfile)
+  const graph = buildRoutingGraph(allWays, profileKey, preferredItemNames, regionRules, regionProfile, avoidedWayIds)
   const result = routeOnGraph(
     graph, startLat, startLng, endLat, endLng,
     profileKey, preferredItemNames, regionRules,

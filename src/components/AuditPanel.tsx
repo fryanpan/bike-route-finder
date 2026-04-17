@@ -6,13 +6,14 @@ import AuditRulesTab from './AuditRulesTab'
 import AuditSamplesTab from './AuditSamplesTab'
 import AuditLegendTab from './AuditLegendTab'
 import AuditEvalTab from './AuditEvalTab'
+import AuditFeedbackTab from './AuditFeedbackTab'
 import type { CityScan, AuditGroup } from '../services/audit'
 import { fetchRules } from '../services/rules'
 import type { RegionRules } from '../services/rules'
 
 type FilterStatus = 'all' | 'classified' | 'unclassified'
-type ActiveTab = 'samples' | 'groups' | 'rules' | 'legend' | 'eval'
-const VALID_TABS: ActiveTab[] = ['samples', 'groups', 'rules', 'legend', 'eval']
+type ActiveTab = 'samples' | 'groups' | 'rules' | 'legend' | 'eval' | 'feedback'
+const VALID_TABS: ActiveTab[] = ['samples', 'groups', 'rules', 'legend', 'eval', 'feedback']
 
 function parseTabFromUrl(): ActiveTab {
   const params = new URLSearchParams(window.location.search)
@@ -189,6 +190,12 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
         >
           Eval
         </button>
+        <button
+          className={`audit-tab${activeTab === 'feedback' ? ' audit-tab-active' : ''}`}
+          onClick={() => setActiveTab('feedback')}
+        >
+          Feedback
+        </button>
       </div>
 
       {activeTab === 'groups' && (
@@ -278,6 +285,10 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
 
       {activeTab === 'eval' && (
         <AuditEvalTab />
+      )}
+
+      {activeTab === 'feedback' && (
+        <AuditFeedbackTab />
       )}
     </div>
   )

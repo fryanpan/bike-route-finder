@@ -7,6 +7,8 @@ import SearchBar from './components/SearchBar'
 import type { QuickOption } from './components/SearchBar'
 import PlaceCard from './components/PlaceCard'
 import RoutingHeader from './components/RoutingHeader'
+import FlagSegmentModal from './components/FlagSegmentModal'
+import { saveFeedbackEntry, type FeedbackVerdict } from './services/feedbackQueue'
 import ProfileSelector from './components/ProfileSelector'
 import DirectionsPanel from './components/DirectionsPanel'
 import { DEFAULT_PROFILES } from './data/profiles'
@@ -25,7 +27,7 @@ import { fetchRules } from './services/rules'
 import type { ClassificationRule } from './services/rules'
 import { BERLIN_PROFILE } from './data/cityProfiles/berlin'
 import RouteList from './components/RouteList'
-import type { Place, Route, ProfileMap, OsmWay } from './utils/types'
+import type { Place, Route, RouteSegment, ProfileMap } from './utils/types'
 import { Sentry } from './sentry'
 
 type UiState = 'search' | 'place-detail' | 'routing'
@@ -165,6 +167,14 @@ export default function App() {
   const [startPoint, setStartPoint] = useState<Place | null>(null)
   const [endPoint, setEndPoint]     = useState<Place | null>(null)
   const [waypoints, setWaypoints]   = useState<Array<{ lat: number; lng: number }>>([])
+
+  // Session-scoped avoid list — OSM way IDs the user has asked to reroute
+  // around via the "Reroute around this" action on a route segment.
+  // Cleared when the user exits routing state.
+  const [avoidedWayIds, setAvoidedWayIds] = useState<Set<number>>(new Set())
+
+  // Segment flag modal state
+  const [flagSegmentTarget, setFlagSegmentTarget] = useState<RouteSegment | null>(null)
 
   // User-configurable home/school. Null on first launch; set via the
   // "Save as Home/School" button in the place card. Persisted to
@@ -383,7 +393,7 @@ export default function App() {
         const b = legPoints[i + 1]
         const leg = await clientRoute(
           a.lat, a.lng, b.lat, b.lng,
-          profileKey, preferredItemNames, regionRules, regionProfile,
+          profileKey, preferredItemNames, regionRules, regionProfile, avoidedWayIds,
         )
         if (!leg) throw new Error('No route found for this segment')
         legs.push(leg)
@@ -552,8 +562,27 @@ export default function App() {
     setEndPoint(null)
     setSelectedPlace(null)
     setError(null)
+    setAvoidedWayIds(new Set())
     setUiState('search')
   }
+
+  // Add the OSM way IDs of a route segment to the session avoid list
+  // and recompute the route. "Reroute around this" action.
+  const rerouteAroundSegment = useCallback((wayIds: number[]) => {
+    if (wayIds.length === 0 || !startPoint || !endPoint) return
+    setAvoidedWayIds((prev) => {
+      const next = new Set(prev)
+      for (const id of wayIds) next.add(id)
+      return next
+    })
+    // Defer the recompute until the new avoid set is applied — React will
+    // batch and the next render reads the updated set.
+    setTimeout(() => {
+      if (startPoint && endPoint) {
+        void computeRoute(startPoint, endPoint, selectedProfile, waypoints)
+      }
+    }, 0)
+  }, [startPoint, endPoint, selectedProfile, waypoints]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -639,6 +668,8 @@ export default function App() {
             showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}
             regionRules={regionRules}
+            onRerouteAround={uiState === 'routing' ? rerouteAroundSegment : undefined}
+            onFlagSegment={uiState === 'routing' ? setFlagSegmentTarget : undefined}
           />
         </Suspense>
 
@@ -776,6 +807,25 @@ export default function App() {
           </>
         )}
       </div>
+
+      {flagSegmentTarget && (
+        <FlagSegmentModal
+          seg={flagSegmentTarget}
+          region={activeRegion}
+          onSave={(verdict: FeedbackVerdict, note: string) => {
+            saveFeedbackEntry({
+              region: activeRegion,
+              wayIds: flagSegmentTarget.wayIds ?? [],
+              coordinates: flagSegmentTarget.coordinates,
+              currentItemName: flagSegmentTarget.itemName,
+              currentTags: {},
+              verdict,
+              note: note || undefined,
+            })
+          }}
+          onClose={() => setFlagSegmentTarget(null)}
+        />
+      )}
 
       {auditOpen && (
         <Suspense fallback={null}>

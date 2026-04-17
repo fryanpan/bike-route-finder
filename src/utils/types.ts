@@ -93,6 +93,12 @@ export interface RouteSegment {
   coordinates: [number, number][]
   /** True when the rider should dismount and walk their bike on this segment. */
   isWalking?: boolean
+  /**
+   * OSM way IDs this segment was built from. Used by "reroute around this
+   * segment" to add the specific ways to a session avoid list before
+   * recomputing the route.
+   */
+  wayIds?: number[]
 }
 
 export interface ValhallaManeuver {
