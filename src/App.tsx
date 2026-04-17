@@ -29,34 +29,20 @@ import { Sentry } from './sentry'
 
 type UiState = 'search' | 'place-detail' | 'routing'
 
-// Default home/school (Bryan's Berlin test addresses, used until the user
-// saves their own). When the user selects a place and taps "Save as home",
-// the full Place (with geocoded lat/lng) replaces this in localStorage so
-// subsequent routing uses exact coords, not a hardcoded guess.
-const DEFAULT_HOME_PLACE: Place = {
-  lat: 52.5016,
-  lng: 13.4103,
-  label: 'Dresdener Str 112, Berlin',
-  shortLabel: 'Dresdener Str 112',
-}
-
-const DEFAULT_SCHOOL_PLACE: Place = {
-  lat: 52.5105,
-  lng: 13.4247,
-  label: 'Wilhelmine-Gemberg-Weg 10, Berlin',
-  shortLabel: 'Wilhelmine-Gemberg-Weg 10',
-}
-
+// User-settable Home and School. No defaults — first-time users see a
+// "Tap to add" hint until they search for a place and save it from the
+// place card. The full Place (with geocoded lat/lng from Nominatim) is
+// persisted in localStorage so subsequent sessions have exact coords.
 const STORAGE_KEY = 'bike-route-profiles'
 const CUSTOM_PREFERRED_KEY = 'bike-route-custom-preferred'
 const TRAVEL_MODE_KEY = 'bike-route-travel-mode'
 const HOME_KEY = 'bike-route-home'
 const SCHOOL_KEY = 'bike-route-school'
 
-function loadSavedPlace(key: string, fallback: Place): Place {
+function loadSavedPlace(key: string): Place | null {
   try {
     const saved = localStorage.getItem(key)
-    if (!saved) return fallback
+    if (!saved) return null
     const parsed = JSON.parse(saved) as Place
     if (typeof parsed.lat === 'number' && typeof parsed.lng === 'number' && parsed.label) {
       return parsed
@@ -64,8 +50,11 @@ function loadSavedPlace(key: string, fallback: Place): Place {
   } catch {
     // fall through
   }
-  return fallback
+  return null
 }
+
+const ADD_HOME_HINT = 'To add a home, search for a place and tap "Save as Home" on the place card.'
+const ADD_SCHOOL_HINT = 'To add a school, search for a place and tap "Save as School" on the place card.'
 
 function loadProfiles(): ProfileMap {
   try {
@@ -176,11 +165,12 @@ export default function App() {
   const [endPoint, setEndPoint]     = useState<Place | null>(null)
   const [waypoints, setWaypoints]   = useState<Array<{ lat: number; lng: number }>>([])
 
-  // User-configurable home/school. Persist the full Place (with geocoded
-  // lat/lng) in localStorage so subsequent sessions have exact coords
-  // rather than a hardcoded guess.
-  const [homePlace, setHomePlace]     = useState<Place>(() => loadSavedPlace(HOME_KEY, DEFAULT_HOME_PLACE))
-  const [schoolPlace, setSchoolPlace] = useState<Place>(() => loadSavedPlace(SCHOOL_KEY, DEFAULT_SCHOOL_PLACE))
+  // User-configurable home/school. Null on first launch; set via the
+  // "Save as Home/School" button in the place card. Persisted to
+  // localStorage with full geocoded lat/lng so exact coords survive
+  // across sessions.
+  const [homePlace, setHomePlace]     = useState<Place | null>(() => loadSavedPlace(HOME_KEY))
+  const [schoolPlace, setSchoolPlace] = useState<Place | null>(() => loadSavedPlace(SCHOOL_KEY))
 
   const saveHomePlace = useCallback((place: Place) => {
     setHomePlace(place)
@@ -523,18 +513,25 @@ export default function App() {
     overlayStatus === 'error'   ? '⚠️ Could not load bike map — pan or zoom to retry' :
     null
 
+  // Saved-place quick option: shows "Tap to add" hint when unset,
+  // otherwise invokes the given routing action with the saved place.
+  const savedOption = (
+    saved: Place | null,
+    kind: 'Home' | 'School',
+    icon: string,
+    onUse: (p: Place) => void,
+  ): QuickOption => ({
+    label: saved ? kind : `Tap to add ${kind}`,
+    icon,
+    onSelect: saved
+      ? () => onUse(saved)
+      : () => window.alert(kind === 'Home' ? ADD_HOME_HINT : ADD_SCHOOL_HINT),
+  })
+
   // Quick options for search (initial state): shortcuts route directly
   const searchQuickOptions: QuickOption[] = [
-    {
-      label: 'Home',
-      icon: '🏠',
-      onSelect: () => startRoutingTo(homePlace),
-    },
-    {
-      label: 'School',
-      icon: '🏫',
-      onSelect: () => startRoutingTo(schoolPlace),
-    },
+    savedOption(homePlace,   'Home',   '🏠', startRoutingTo),
+    savedOption(schoolPlace, 'School', '🏫', startRoutingTo),
   ]
 
   // Quick options for routing inputs: fill the field
@@ -548,16 +545,8 @@ export default function App() {
       },
       isLocation: true,
     },
-    {
-      label: 'Home',
-      icon: '🏠',
-      onSelect: () => handleStartSelect(homePlace),
-    },
-    {
-      label: 'School',
-      icon: '🏫',
-      onSelect: () => handleStartSelect(schoolPlace),
-    },
+    savedOption(homePlace,   'Home',   '🏠', handleStartSelect),
+    savedOption(schoolPlace, 'School', '🏫', handleStartSelect),
   ]
 
   const endQuickOptions: QuickOption[] = [
@@ -570,16 +559,8 @@ export default function App() {
       },
       isLocation: true,
     },
-    {
-      label: 'Home',
-      icon: '🏠',
-      onSelect: () => handleEndSelect(homePlace),
-    },
-    {
-      label: 'School',
-      icon: '🏫',
-      onSelect: () => handleEndSelect(schoolPlace),
-    },
+    savedOption(homePlace,   'Home',   '🏠', handleEndSelect),
+    savedOption(schoolPlace, 'School', '🏫', handleEndSelect),
   ]
 
   // The place to show on the map as a single marker (place-detail state)
