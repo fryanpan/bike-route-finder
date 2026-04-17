@@ -14,7 +14,7 @@ import DirectionsPanel from './components/DirectionsPanel'
 import { DEFAULT_PROFILES } from './data/profiles'
 import { scoreRoute } from './services/routeScorer'
 import { clientRoute } from './services/clientRouter'
-import { primeInMemoryCacheFromIdb } from './services/overpass'
+import { primeInMemoryCacheFromIdb, latLngToTile, getCachedTile } from './services/overpass'
 import { logRoute } from './services/routeLog'
 import { reverseGeocode } from './services/geocoding'
 import {
@@ -368,9 +368,15 @@ export default function App() {
     end: Place,
     profileKey: string,
     wps: Array<{ lat: number; lng: number }>,
+    avoidOverride?: Set<number>,
   ) {
     const profile = profiles[profileKey]
     if (!profile) return
+
+    // When rerouteAroundSegment triggers a recompute it passes the
+    // just-updated avoid set explicitly so we don't read a stale closure
+    // value of `avoidedWayIds` here. Falls back to the state otherwise.
+    const avoids = avoidOverride ?? avoidedWayIds
 
     setIsLoading(true)
     setError(null)
@@ -393,7 +399,7 @@ export default function App() {
         const b = legPoints[i + 1]
         const leg = await clientRoute(
           a.lat, a.lng, b.lat, b.lng,
-          profileKey, preferredItemNames, regionRules, regionProfile, avoidedWayIds,
+          profileKey, preferredItemNames, regionRules, regionProfile, avoids,
         )
         if (!leg) throw new Error('No route found for this segment')
         legs.push(leg)
@@ -568,20 +574,24 @@ export default function App() {
 
   // Add the OSM way IDs of a route segment to the session avoid list
   // and recompute the route. "Reroute around this" action.
+  //
+  // Computes the next avoid set locally and passes it explicitly to
+  // computeRoute — avoids stale-closure / double-tap-race issues where
+  // React hasn't flushed the setState before the recompute reads the
+  // prior value.
   const rerouteAroundSegment = useCallback((wayIds: number[]) => {
     if (wayIds.length === 0 || !startPoint || !endPoint) return
     setAvoidedWayIds((prev) => {
       const next = new Set(prev)
       for (const id of wayIds) next.add(id)
+      // Fire-and-forget the recompute with the just-built set. Even if
+      // a second tap fires before state commits, the second call sees
+      // the union of both additions because setAvoidedWayIds is a
+      // reducer and next rerouteAroundSegment closes over the same prev
+      // semantics.
+      void computeRoute(startPoint, endPoint, selectedProfile, waypoints, next)
       return next
     })
-    // Defer the recompute until the new avoid set is applied — React will
-    // batch and the next render reads the updated set.
-    setTimeout(() => {
-      if (startPoint && endPoint) {
-        void computeRoute(startPoint, endPoint, selectedProfile, waypoints)
-      }
-    }, 0)
   }, [startPoint, endPoint, selectedProfile, waypoints]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
@@ -813,12 +823,23 @@ export default function App() {
           seg={flagSegmentTarget}
           region={activeRegion}
           onSave={(verdict: FeedbackVerdict, note: string) => {
+            // Look up the segment's first way in cached tiles so the
+            // admin can later write a region rule from its tags.
+            const firstWayId = flagSegmentTarget.wayIds?.[0]
+            const midCoord = flagSegmentTarget.coordinates[Math.floor(flagSegmentTarget.coordinates.length / 2)]
+            let currentTags: Record<string, string> = {}
+            if (firstWayId != null && midCoord) {
+              const { row, col } = latLngToTile(midCoord[0], midCoord[1])
+              const tile = getCachedTile(row, col)
+              const way = tile?.find((w) => w.osmId === firstWayId)
+              if (way) currentTags = way.tags
+            }
             saveFeedbackEntry({
               region: activeRegion,
               wayIds: flagSegmentTarget.wayIds ?? [],
               coordinates: flagSegmentTarget.coordinates,
               currentItemName: flagSegmentTarget.itemName,
-              currentTags: {},
+              currentTags,
               verdict,
               note: note || undefined,
             })

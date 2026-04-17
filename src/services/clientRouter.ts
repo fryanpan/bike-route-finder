@@ -433,16 +433,25 @@ export function routeOnGraph(
 
   // Post-process: restore real itemName, set isWalking flag, heal gaps,
   // attach wayIds per segment (for tap-to-avoid). wayIds are derived by
-  // matching classified points back onto the coalesced segments.
+  // keying each coord lat,lng and accumulating every wayId that
+  // traverses it — handles routes that revisit a node (loops / spurs).
+  const wayIdsByCoord = new Map<string, Set<number>>()
+  for (const cp of classified) {
+    if (cp.wayId == null) continue
+    const k = `${cp.coord[0]},${cp.coord[1]}`
+    let set = wayIdsByCoord.get(k)
+    if (!set) { set = new Set(); wayIdsByCoord.set(k, set) }
+    set.add(cp.wayId)
+  }
   const restoredSegments: RouteSegment[] = rawSegments.map((seg) => {
     const base: RouteSegment = seg.itemName === WALK_MARKER
       ? { ...seg, itemName: null, isWalking: true }
       : seg
-    // Collect wayIds by matching segment coords to classified points.
     const wayIds = new Set<number>()
     for (const coord of seg.coordinates) {
-      const cp = classified.find((c) => c.coord[0] === coord[0] && c.coord[1] === coord[1])
-      if (cp?.wayId != null) wayIds.add(cp.wayId)
+      const k = `${coord[0]},${coord[1]}`
+      const found = wayIdsByCoord.get(k)
+      if (found) for (const id of found) wayIds.add(id)
     }
     return { ...base, wayIds: [...wayIds] }
   })
