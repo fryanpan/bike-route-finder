@@ -187,6 +187,17 @@ export default function App() {
     setActivePreference(loadActivePreference())
   }, [])
 
+  // Cross-tab sync: if another tab edits preferences, pick it up here.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'bike-route-active-preference' || e.key === 'bike-route-preferences') {
+        refreshActivePreference()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [refreshActivePreference])
+
   // User-configurable home/school. Null on first launch; set via the
   // "Save as Home/School" button in the place card. Persisted to
   // localStorage with full geocoded lat/lng so exact coords survive

@@ -70,10 +70,44 @@ describe('parsePreferenceText — multi-line', () => {
     expect(r.unparsed[0]).toContain('potholes')
   })
 
+  it('splits on and / but / also', () => {
+    const r = parsePreferenceText('avoid gravel but love fine gravel')
+    // Should produce exactly two adjustments, not merge them into one
+    // rule matching both "gravel" and "fine" in the same fragment.
+    expect(r.adjustments).toHaveLength(2)
+    const kinds = r.adjustments.map((a) => (a as { surface: string }).surface)
+    expect(kinds).toContain('gravel')
+    expect(kinds).toContain('fine_gravel')
+  })
+
   it('empty input yields empty result', () => {
     const r = parsePreferenceText('')
     expect(r.adjustments).toEqual([])
     expect(r.unparsed).toEqual([])
+  })
+})
+
+describe('parsePreferenceText — negation safety', () => {
+  it('"I don\'t hate cobbles" goes unparsed (not inverted to ok)', () => {
+    const r = parsePreferenceText("I don't hate cobbles")
+    expect(r.adjustments).toEqual([])
+    expect(r.unparsed.length).toBeGreaterThan(0)
+  })
+
+  it('"do not avoid cobbles" goes unparsed', () => {
+    const r = parsePreferenceText('do not avoid cobbles')
+    expect(r.adjustments).toEqual([])
+    expect(r.unparsed.length).toBeGreaterThan(0)
+  })
+
+  it('"don\'t mind cobbles" still parses as ok (idiomatic positive)', () => {
+    const r = parsePreferenceText("I don't mind cobbles")
+    expect(r.adjustments).toEqual([{ kind: 'surface', surface: 'cobblestone', tolerance: 'ok' }])
+  })
+
+  it('"never ride painted lanes" goes unparsed (negation)', () => {
+    const r = parsePreferenceText('never ride painted lanes')
+    expect(r.adjustments).toEqual([])
   })
 })
 

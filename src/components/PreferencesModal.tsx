@@ -19,7 +19,7 @@ function humanize(adj: RiderPreference['adjustments'][number]): string {
       return `${adj.surface} surface — reject`
     }
     case 'path-type':
-      return `${adj.item} — ${adj.pref}`
+      return `${adj.item} — ${adj.pref} (coming soon)`
   }
 }
 

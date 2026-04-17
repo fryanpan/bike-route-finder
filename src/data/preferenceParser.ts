@@ -77,11 +77,14 @@ function lookupPathType(phrase: string): string | undefined {
   return undefined
 }
 
-// Canonical patterns. Order matters: earlier patterns win.
+// Canonical patterns. Order matters: earlier patterns win. Patterns
+// keep subject + modifier adjacent (≤ a few words apart) so compound
+// phrasings like "fine gravel" inside a different fragment's subject
+// don't trip the wrong rule.
 const CANON: Canon[] = [
-  // "cobbles are fine" / "cobblestones are ok" / "paving stones are fine"
+  // "cobbles are fine" / "paving stones are ok" / "gravel no problem"
   {
-    match: new RegExp(`\\b(${surfaceTokens})\\b.*\\b(are |is )?(fine|ok|okay|no problem)\\b`),
+    match: new RegExp(`\\b(${surfaceTokens})\\b\\s+(?:(?:are|is|=)\\s+)?(fine|ok|okay|no problem)\\b`),
     build: (m) => {
       const surface = SURFACE_ALIASES[m[1]]
       return surface ? { kind: 'surface', surface, tolerance: 'ok' } : null
@@ -89,7 +92,7 @@ const CANON: Canon[] = [
   },
   // "i don't mind cobbles" / "don't mind paving stones"
   {
-    match: new RegExp(`\\b(don'?t|do not) mind\\b.*\\b(${surfaceTokens})\\b`),
+    match: new RegExp(`\\b(don'?t|do not) mind\\b\\s+(${surfaceTokens})\\b`),
     build: (m) => {
       const surface = SURFACE_ALIASES[m[2]]
       return surface ? { kind: 'surface', surface, tolerance: 'ok' } : null
@@ -97,15 +100,24 @@ const CANON: Canon[] = [
   },
   // "i hate cobblestones" / "avoid cobbles" / "skip paving stones"
   {
-    match: new RegExp(`\\b(hate|avoid|skip|no)\\b.*\\b(${surfaceTokens})\\b`),
+    match: new RegExp(`\\b(hate|avoid|skip)\\b\\s+(?:\\w+\\s+){0,2}(${surfaceTokens})\\b`),
     build: (m) => {
       const surface = SURFACE_ALIASES[m[2]]
       return surface ? { kind: 'surface', surface, tolerance: 'rough' } : null
     },
   },
+  // "love cobbles" / "like gravel" / "enjoy paving stones" — positive
+  // affirmations treated as tolerance=ok for that surface.
+  {
+    match: new RegExp(`\\b(love|like|enjoy)\\b\\s+(${surfaceTokens})\\b`),
+    build: (m) => {
+      const surface = SURFACE_ALIASES[m[2]]
+      return surface ? { kind: 'surface', surface, tolerance: 'ok' } : null
+    },
+  },
   // "prefer Fahrradstraße" / "prefer bike paths" / "love cycleways"
   {
-    match: new RegExp(`\\b(prefer|love|like)\\b.*\\b(${pathTokens})\\b`),
+    match: new RegExp(`\\b(prefer|love|like)\\b\\s+(?:\\w+\\s+){0,2}(${pathTokens})\\b`),
     build: (m) => {
       const item = lookupPathType(m[2])
       return item ? { kind: 'path-type', item, pref: 'prefer' } : null
@@ -113,7 +125,7 @@ const CANON: Canon[] = [
   },
   // "avoid painted bike lanes" / "hate painted lanes" / "skip bus lane"
   {
-    match: new RegExp(`\\b(avoid|hate|skip|no)\\b.*\\b(${pathTokens})\\b`),
+    match: new RegExp(`\\b(avoid|hate|skip)\\b\\s+(?:\\w+\\s+){0,2}(${pathTokens})\\b`),
     build: (m) => {
       const item = lookupPathType(m[2])
       return item ? { kind: 'path-type', item, pref: 'avoid' } : null
@@ -126,23 +138,45 @@ export interface ParseResult {
   unparsed: string[]
 }
 
+/** Detects negation words that invert a phrase's intent. */
+const NEGATION = /\b(don'?t|do not|doesn'?t|does not|never|won'?t|not)\b/i
+
 /**
  * Parse a free-text English block into typed preference adjustments.
  *
- * Splits on newlines and sentences ('.', ';', ',' at end of thought)
- * and tries each fragment against the canon. Fragments that match
- * nothing go into `unparsed`.
+ * Splits on sentence + clause boundaries (newline, period, semicolon,
+ * comma, and also "and" / "but" / "then") so compound phrasings like
+ * "avoid gravel but love fine gravel" become two independent
+ * fragments. This avoids surface-token collisions (e.g. the second
+ * "gravel" in "fine gravel" getting matched by a rule aimed at the
+ * first "gravel").
+ *
+ * Fragments containing a negation word are refused — safer to leave
+ * them unparsed than risk mis-inverting the user's intent.
  */
 export function parsePreferenceText(raw: string): ParseResult {
   const adjustments: PreferenceAdjustment[] = []
   const unparsed: string[] = []
   const frags = raw
-    .split(/[\n;.]+|,\s*(?=[a-z])/i)
+    .split(/[\n;.]+|,\s*(?=[a-z])|\s+(?:and|but|also|then)\s+/i)
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
 
   for (const frag of frags) {
     const lower = frag.toLowerCase()
+
+    // Refuse negated fragments entirely — the canon covers positive
+    // statements only. "I don't hate cobbles" goes to unparsed rather
+    // than inverted to "ok" (too brittle to infer).
+    if (NEGATION.test(lower)) {
+      // Two exceptions: "don't mind X" is an idiomatic positive ("ok")
+      // already handled by rule 2 below; don't refuse those.
+      if (!/\b(don'?t|do not) mind\b/.test(lower)) {
+        unparsed.push(frag)
+        continue
+      }
+    }
+
     let matched = false
     for (const rule of CANON) {
       const m = lower.match(rule.match)
