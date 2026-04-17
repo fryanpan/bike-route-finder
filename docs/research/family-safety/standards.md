@@ -36,7 +36,7 @@ Two research papers show that published LTS thresholds **undersell the stress fa
 - Ralph & Von Hagen, [**Will parents let their children bike on 'low stress' streets? Validating level of traffic stress for biking** (Transportation Research Part F, 2019)](https://www.sciencedirect.com/science/article/abs/pii/S136984781830740X). Key finding: 88% of parents allow kids on multi-use paths, but only **44% on wide residential rated LTS 1** and **32% on narrow residential rated LTS 1**. Direct quote: *"Parents preferred separation from traffic to a greater degree than LTS suggests."*
 - Ferenchak & Marshall, [**Validation of Bicycle Level of Traffic Stress and Perceived Safety for Children** (TRR, 2020)](https://journals.sagepub.com/doi/10.1177/0361198120909833). Proposes "perceived traffic safety" as a construct distinct from LTS for child trips. An "Adjustment-Factor LTS" methodology lives at https://www.trafficstress.org/ — the closest existing work to a per-family-context modifier.
 
-These motivate kid-starting-out's stricter-than-LTS-1 requirement (`requireLowCarRisk`: car-free OR bike-prioritized only): the standard LTS 1 tier rejects 56–68% of parents, so "LTS 1 for children" as published isn't actually child-safe by parental judgment.
+These motivate kid-starting-out's stricter-than-LTS-1 requirement (`requireCarFree`: physically car-free only, tightened 2026-04-18 from an earlier "car-free OR bike-prioritized" formulation that still admitted Fahrradstraßen): the standard LTS 1 tier rejects 56–68% of parents, so "LTS 1 for children" as published isn't actually child-safe by parental judgment.
 
 ### Cognitive-load and developmental analogs (no direct family-cycling framework)
 
