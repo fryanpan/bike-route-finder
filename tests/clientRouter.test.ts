@@ -279,6 +279,20 @@ describe('routeOnGraph', () => {
     expect(link!.data.isWalking).toBe(true)
   })
 
+  test('kid-starting-out bridge-walks living streets (bikePriority but cars still legal)', () => {
+    // living_street = legally ≤ walking pace for cars. Still has cars.
+    // kid-starting-out bridge-walks.
+    const livingStreetWays: OsmWay[] = [{
+      osmId: 44,
+      itemName: null,
+      tags: { highway: 'living_street' },
+      coordinates: [[52.5000, 13.4000], [52.5010, 13.4000]],
+    }]
+    const graph = buildRoutingGraph(livingStreetWays, 'kid-starting-out', new Set())
+    const link = graph.getLink('52.50000,13.40000', '52.50100,13.40000')
+    expect(link!.data.isWalking).toBe(true)
+  })
+
   test('kid-starting-out bridge-walks ordinary quiet residential; kid-confident rides it', () => {
     // Quiet residential street with no bike-priority designation.
     // kid-confident accepts it for riding (full Furth LTS 1), kid-starting-out
