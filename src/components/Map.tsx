@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import { useEffect, useRef, useMemo } from 'react'
-import { Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
 import { getVisibleTiles, getCachedTile, classifyOsmTagsToItem } from '../services/overpass'
 import BikeMapOverlay from './BikeMapOverlay'
@@ -163,10 +163,14 @@ function RouteDisplay({
   route,
   profileKey,
   preferredItemNames,
+  onRerouteAround,
+  onFlagSegment,
 }: {
   route: Route | null
   profileKey: string
   preferredItemNames: Set<string>
+  onRerouteAround?: (wayIds: number[]) => void
+  onFlagSegment?: (seg: RouteSegment) => void
 }) {
   if (!route) return null
 
@@ -194,6 +198,7 @@ function RouteDisplay({
           const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
           const color = isPreferred ? PREFERRED_COLOR : OTHER_COLOR
           const legendItem = getLegendItem(seg.itemName, profileKey)
+          const canAct = (onRerouteAround || onFlagSegment) && (seg.wayIds?.length ?? 0) > 0
           return (
             <Polyline
               key={i}
@@ -202,7 +207,31 @@ function RouteDisplay({
               weight={16}
               opacity={0.95}
             >
-              {legendItem && (
+              {canAct ? (
+                <Popup className="segment-popup">
+                  <div className="segment-popup-body">
+                    <div className="segment-popup-title">
+                      {legendItem?.icon} {seg.itemName ?? 'Route segment'}
+                    </div>
+                    {onRerouteAround && (
+                      <button
+                        className="segment-popup-btn segment-popup-btn-primary"
+                        onClick={() => onRerouteAround(seg.wayIds ?? [])}
+                      >
+                        ↩ Reroute around this
+                      </button>
+                    )}
+                    {onFlagSegment && (
+                      <button
+                        className="segment-popup-btn"
+                        onClick={() => onFlagSegment(seg)}
+                      >
+                        🚩 Flag as wrong
+                      </button>
+                    )}
+                  </div>
+                </Popup>
+              ) : legendItem && (
                 <Tooltip sticky direction="top" offset={[0, -6]}>
                   <span style={{ fontSize: 13 }}>{legendItem.icon} {seg.itemName}</span>
                 </Tooltip>
@@ -368,6 +397,8 @@ interface Props {
   regionRules?: ClassificationRule[]
   onSelectRoute?: (index: number) => void
   onAddWaypoint?: (lat: number, lng: number) => void
+  onRerouteAround?: (wayIds: number[]) => void
+  onFlagSegment?: (seg: RouteSegment) => void
 }
 
 export default function Map({
@@ -388,6 +419,8 @@ export default function Map({
   regionRules,
   onSelectRoute,
   onAddWaypoint,
+  onRerouteAround,
+  onFlagSegment,
 }: Props) {
   return (
     <MapContainer
@@ -453,6 +486,8 @@ export default function Map({
         route={route}
         profileKey={profileKey}
         preferredItemNames={preferredItemNames}
+        onRerouteAround={onRerouteAround}
+        onFlagSegment={onFlagSegment}
       />
 
       {startPoint && (
