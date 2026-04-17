@@ -29,6 +29,26 @@ Both calibrate against the Dutch **CROW Design Manual**. The UK's **LTN 1/20** u
 - Furth, Mekuria & Nixon, [**Network Connectivity for Low-Stress Bicycling** (TRR 2016)](https://journals.sagepub.com/doi/10.3141/2587-06).
 - [Boston Bicycle LTS Technical Documentation (2020, PDF)](https://www.boston.gov/sites/default/files/file/2020/12/Bicycle%20Level%20of%20Traffic%20Stress%20Report%20&%20Guide%20for%20Large%20Developments.pdf) — a concrete municipal LTS implementation.
 
+### LTS validation against real parental risk tolerance
+
+Two research papers show that published LTS thresholds **undersell the stress families actually experience**, which is the empirical justification for our kid-mode subdivision:
+
+- Ralph & Von Hagen, [**Will parents let their children bike on 'low stress' streets? Validating level of traffic stress for biking** (Transportation Research Part F, 2019)](https://www.sciencedirect.com/science/article/abs/pii/S136984781830740X). Key finding: 88% of parents allow kids on multi-use paths, but only **44% on wide residential rated LTS 1** and **32% on narrow residential rated LTS 1**. Direct quote: *"Parents preferred separation from traffic to a greater degree than LTS suggests."*
+- Ferenchak & Marshall, [**Validation of Bicycle Level of Traffic Stress and Perceived Safety for Children** (TRR, 2020)](https://journals.sagepub.com/doi/10.1177/0361198120909833). Proposes "perceived traffic safety" as a construct distinct from LTS for child trips. An "Adjustment-Factor LTS" methodology lives at https://www.trafficstress.org/ — the closest existing work to a per-family-context modifier.
+
+These motivate kid-starting-out's stricter-than-LTS-1 requirement (`requireLowCarRisk`: car-free OR bike-prioritized only): the standard LTS 1 tier rejects 56–68% of parents, so "LTS 1 for children" as published isn't actually child-safe by parental judgment.
+
+### Cognitive-load and developmental analogs (no direct family-cycling framework)
+
+No existing framework models parent cognitive load explicitly — we verified this in a literature review. The closest adjacent evidence:
+
+- Wiczorek & Protzak, [**The Impact of Visual and Cognitive Dual-Task Demands on Traffic Perception During Road Crossing** (Frontiers in Psychology, 2022)](https://pmc.ncbi.nlm.nih.gov/articles/PMC8891650/). Visual secondary tasks roughly quadruple road-crossing errors (0.41 → 1.63) and add ~0.75 s to response times in adult pedestrians. **Does not address parental supervision**, but is the strongest empirical analog for "monitoring your kid while riding" as a dual-task load.
+- Zeuwts et al., [**Hazard perception in young cyclists and adult cyclists** (Accident Analysis & Prevention, 2016)](https://pubmed.ncbi.nlm.nih.gov/27174373/). Children under 13 have significantly delayed reaction times to latent hazards and have not automated bicycling skills. Developmental evidence for why the parent must be the second pair of eyes.
+- Canadian Paediatric Society, [**Improving cycling safety for children and youth** (Paediatrics & Child Health, 2024)](https://academic.oup.com/pch/article/29/5/324/7756834). The only source that operationally names the attention-allocation problem, recommending the adult cycle *behind* the child "so they can observe the child at all times."
+- Morrongiello & Barton, [**Child pedestrian safety: parental supervision, modeling behaviors, and beliefs about child pedestrian competence** (Accident Analysis & Prevention, 2009)](https://pubmed.ncbi.nlm.nih.gov/19664443/). Treats supervision as a binary/ordinal behavior, not an attentional-cost variable. Closest work in pedestrian context.
+
+What the literature **doesn't** have: no paper measures parent command-compliance latency in cycling, no framework uses decision frequency as its primary stress metric, no Dutch / Danish / UK / German guideline distinguishes "family cycling" from "child cycling" as separate design categories. This is the gap our kid-mode progression fills. See `docs/product/routing-use-cases.md` for the three-axis parent-stress model this justifies.
+
 LTS tiers:
 - **LTS 1** — children / "most children" (the family-bike-map target)
 - **LTS 2** — "most adults including interested but concerned" (calibrated against Dutch CROW)
