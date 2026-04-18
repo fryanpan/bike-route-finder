@@ -171,29 +171,61 @@ const WALKING_COLOR = '#6b7280' // gray for walk-your-bike segments
  * right about it.
  */
 /**
- * Find the nearest OsmWay to a lat/lng in cached tiles. Searches the
- * tile containing the point + its 8 neighbors so edge-of-tile clicks
- * still match. Returns null if no ways are cached nearby.
+ * Find the OSM way in cached tiles whose path most closely matches the
+ * given route segment. "Matches" = smallest sum of per-coord Manhattan
+ * distances from the segment's sample points to the way's coords. We
+ * sample up to 5 evenly-spaced points along the segment so long
+ * segments don't get dominated by the endpoints.
+ *
+ * This is more accurate than matching a single click point because:
+ *   - one segment can be made of multiple adjacent ways; we want the
+ *     way the SEGMENT traverses, not a tangentially-nearby way
+ *   - click lands anywhere on the drawn polyline; the segment itself
+ *     is the actual source of truth
+ *
+ * Searches the tile containing the segment's midpoint + its 8 neighbors.
+ * Returns null if no ways are cached nearby.
  */
-function findNearestWay(lat: number, lng: number): { way: OsmWay; distance: number } | null {
-  const { row, col } = latLngToTile(lat, lng)
+function findNearestWayToSegment(segCoords: [number, number][]): { way: OsmWay; distance: number } | null {
+  if (segCoords.length === 0) return null
+
+  // Sample up to 5 points along the segment
+  const sampleCount = Math.min(5, segCoords.length)
+  const samples: Array<[number, number]> = []
+  for (let i = 0; i < sampleCount; i++) {
+    const idx = Math.round((i * (segCoords.length - 1)) / Math.max(1, sampleCount - 1))
+    samples.push(segCoords[idx])
+  }
+
+  // Use the midpoint to pick which tiles to search
+  const mid = segCoords[Math.floor(segCoords.length / 2)]
+  const { row, col } = latLngToTile(mid[0], mid[1])
+
   let best: OsmWay | null = null
-  let bestDist = Infinity
+  let bestScore = Infinity
+
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
       const tile = getCachedTile(row + dr, col + dc)
       if (!tile) continue
       for (const way of tile) {
-        for (const [wLat, wLng] of way.coordinates) {
-          // Manhattan-ish distance in degrees; fine for picking the
-          // nearest candidate out of many.
-          const d = Math.abs(wLat - lat) + Math.abs(wLng - lng)
-          if (d < bestDist) { bestDist = d; best = way }
+        if (way.coordinates.length === 0) continue
+        // For each sample, find its nearest distance to this way.
+        // Sum those distances — the best-matching way has the smallest sum.
+        let sum = 0
+        for (const [sLat, sLng] of samples) {
+          let minD = Infinity
+          for (const [wLat, wLng] of way.coordinates) {
+            const d = Math.abs(wLat - sLat) + Math.abs(wLng - sLng)
+            if (d < minD) minD = d
+          }
+          sum += minD
         }
+        if (sum < bestScore) { bestScore = sum; best = way }
       }
     }
   }
-  return best ? { way: best, distance: bestDist } : null
+  return best ? { way: best, distance: bestScore } : null
 }
 
 function SegmentPopup({
@@ -214,25 +246,32 @@ function SegmentPopup({
   const [imgUrl, setImgUrl] = useState<string | null>(null)
   const [imgLoading, setImgLoading] = useState(true)
 
-  // Resolve the OsmWay at the click point. This is more robust than
-  // relying on seg.wayIds — buildSegments coalesces multiple source
-  // ways into one segment, and some segments (e.g. the very first
-  // stub from the start pin) have no wayIds at all. Reading from the
-  // tile at click time gives us the actual way the user tapped on.
-  const nearest = useMemo(() => findNearestWay(latlng[0], latlng[1]), [latlng])
+  // Resolve the OsmWay that best matches this segment's path. Matching
+  // against the whole segment (not a single click point) gives tags
+  // and reroute targets that describe what the segment ACTUALLY is,
+  // not a tangentially-nearby way. More accurate than seg.wayIds when
+  // buildSegments coalesces multiple source ways or drops them.
+  const nearest = useMemo(() => findNearestWayToSegment(seg.coordinates), [seg])
   const wayToAvoid: number | null = nearest?.way.osmId ?? null
   const tags: Record<string, string> = nearest?.way.tags ?? {}
+
+  // Street-view midpoint is the segment midpoint, not the click point.
+  // If the user clicked near the end of a long segment, we still want
+  // an image representative of the segment as a whole.
+  const segMid: [number, number] = seg.coordinates.length > 0
+    ? seg.coordinates[Math.floor(seg.coordinates.length / 2)]
+    : latlng
 
   useEffect(() => {
     let cancelled = false
     setImgLoading(true)
-    getStreetImage(latlng[0], latlng[1]).then((img) => {
+    getStreetImage(segMid[0], segMid[1]).then((img) => {
       if (cancelled) return
       setImgUrl(img?.thumbUrl ?? null)
       setImgLoading(false)
     }).catch(() => { if (!cancelled) setImgLoading(false) })
     return () => { cancelled = true }
-  }, [latlng])
+  }, [segMid])
 
   const tagRows = useMemo(() => {
     const rows: string[] = []
@@ -435,9 +474,36 @@ function RouteDisplay({
 const currentLocationIcon = L.divIcon({
   html: '<div class="current-location-dot"><div class="current-location-pulse"></div></div>',
   className: '',
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
+  iconSize: [48, 48],
+  iconAnchor: [24, 24],
 })
+
+/**
+ * Recenter-on-current-location control. Rendered inside the
+ * MapContainer so it gets access to useMap. Button sits above the
+ * leaflet zoom buttons; disabled until a location is available.
+ */
+function RecenterButton({ currentLocation }: { currentLocation: { lat: number; lng: number } | null }) {
+  const map = useMap()
+  return (
+    <button
+      className="recenter-btn"
+      disabled={!currentLocation}
+      title={currentLocation ? 'Center on current location' : 'Location not available'}
+      aria-label="Center on current location"
+      onClick={() => {
+        if (!currentLocation) return
+        const currentZoom = map.getZoom()
+        // Keep the user's zoom if they've zoomed in; otherwise default
+        // to a useful 15 (street level).
+        const z = currentZoom >= 14 ? currentZoom : 15
+        map.setView([currentLocation.lat, currentLocation.lng], z, { animate: true })
+      }}
+    >
+      ◎
+    </button>
+  )
+}
 
 /**
  * Show preferred infrastructure segments near the route as clickable suggestions.
@@ -678,6 +744,7 @@ export default function Map({
         />
       )}
 
+      <RecenterButton currentLocation={currentLocation} />
     </MapContainer>
   )
 }
