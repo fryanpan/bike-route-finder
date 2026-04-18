@@ -90,6 +90,57 @@ out geom;
 
 Run at https://overpass-turbo.eu/, export as GeoJSON, import to uMap
 
+## Bike Citizens (added 2026-04-18)
+
+Austrian bike-nav app (Graz/Vienna). The closest product-shape match
+to family-bike-map — urban, OSM-based, safety-biased routing. Same
+general shape, different target audience: they build for adult
+commuters, we build for families.
+
+- **URLs**: https://www.bikecitizens.net/ · https://apps.apple.com/us/app/bike-citizens-cycling-app-gps/id517332958 · https://wiki.openstreetmap.org/wiki/Bike_Citizens · https://road.cc/content/tech-news/228201-cycling-app-week-bike-citizens
+- **Founded**: 2011 as BikeCityGuide, launched iOS April 2012
+- **Platform**: iOS, Android, web planner at `map.bikecitizens.net`
+- **Pricing**: Free tier (multi-stop + voice nav + 7km offline radius). Premium $3.49/mo or $27.99/yr (global + wider offline + more customization). Quirky "Cycle to Free" unlock: 100km in a city over 30 days unlocks its guide.
+- **Coverage**: ~450 cities, strongest in DACH (Austria + Germany, all German cities >100k pop). Partial EU, AU, US. **No Canada.** US reviewers consistently complain routing is thin or "useless" there.
+
+### Routing engine + data model
+- OSM-based. Routes contribute back to OSM upstream (no private overlay for errors).
+- Three named profiles — **Comfortable** (prioritizes cycle infra + residential, accepts detours to dodge busy roads), **Normal** (balanced), **Fast** (experienced rider, OK sharing lanes with cars).
+- Additional knobs: bike type (city / MTB / road / e-bike), asphalt-only, avoid tram tracks.
+- Point-to-point with multi-stop waypoints. **No scenic / discovery / reachability mode.**
+- Exact routing engine not publicly disclosed (not OSRM/Valhalla/BRouter/GraphHopper per name); OSM wiki lists Python/Java/C/C++ as their stack.
+
+### Family / kid features
+- **None.** Nothing in FAQ, App Store listing, or government-facing materials mentions kids, family mode, child seats, or cargo-bike-with-child.
+- Closest adjacency: **Bike2School** program sold to cities (Dortmund, Hannover) — gamified tracking/challenge app, not a routing mode.
+- **This is the positioning gap for family-bike-map to exploit.**
+
+### Crowdsourcing
+- Map errors go upstream to OSM. Slow, generic, doesn't re-enter the classifier.
+- **PING** is a structured cyclist-to-city feedback tool, but PING reports flow to municipal dashboards, not back into routing cost.
+- Anonymized GPS heatmaps are sold to cities as a planning analytics product, not exposed as a routing signal.
+
+### Known complaints (from reviews)
+- US/Canada coverage is thin. Multiple "useless" reviews.
+- Occasional bad turns (parking lots, wrong directional commands).
+- London rider reported awkward intersections / dog-legs.
+- One experienced rider: "like Strava heatmaps" — fine for 15-20 mph city riding, wrong for sport.
+- Value-for-money pushback on the subscription tier.
+- App Store rating: 4.5/5 (149 reviews); JustUseApp safety score 62.9/100 (145 reviews).
+
+### What matters for family-bike-map positioning
+
+1. **Three profiles, zero for kids.** "Comfortable" is pitched at adult commuters who prefer less stress, not at a parent shepherding a 5-year-old. Our kid-starting-out / kid-confident / kid-traffic-savvy hierarchy is genuinely differentiated.
+2. **Crowdsourcing is their strategic weakness.** Errors go to OSM (slow). PING is municipality-facing (doesn't touch routing). If we close a tight loop where parents flag a segment and it shifts routing within days, that's a real moat.
+3. **Heatmaps are their discovery story.** A family-filtered heatmap ("show me where other families ride") would be a natural product extension — they don't filter heatmaps by rider type.
+4. **North America is wide open.** Their US/Canada gap is the loudest review complaint. SF is not a Bike Citizens stronghold.
+5. **DACH-local tags are implied but not documented.** "Comfortable" clearly preferences Fahrradstraße but the granularity of their classifier (bikePriority vs. carFree) is not public. If we publish ours, that's technical credibility.
+
+### Unverified
+- Exact routing engine.
+- Whether Fahrradstraße gets a dedicated cost bucket vs. generic "bike infrastructure."
+- Whether PING feedback ever closes the loop into live routing.
+
 ## Gap Analysis
 
 ### What Exists
