@@ -170,6 +170,32 @@ const WALKING_COLOR = '#6b7280' // gray for walk-your-bike segments
  * it, since either context lets them judge whether the classifier was
  * right about it.
  */
+/**
+ * Find the nearest OsmWay to a lat/lng in cached tiles. Searches the
+ * tile containing the point + its 8 neighbors so edge-of-tile clicks
+ * still match. Returns null if no ways are cached nearby.
+ */
+function findNearestWay(lat: number, lng: number): { way: OsmWay; distance: number } | null {
+  const { row, col } = latLngToTile(lat, lng)
+  let best: OsmWay | null = null
+  let bestDist = Infinity
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const tile = getCachedTile(row + dr, col + dc)
+      if (!tile) continue
+      for (const way of tile) {
+        for (const [wLat, wLng] of way.coordinates) {
+          // Manhattan-ish distance in degrees; fine for picking the
+          // nearest candidate out of many.
+          const d = Math.abs(wLat - lat) + Math.abs(wLng - lng)
+          if (d < bestDist) { bestDist = d; best = way }
+        }
+      }
+    }
+  }
+  return best ? { way: best, distance: bestDist } : null
+}
+
 function SegmentPopup({
   seg,
   latlng,
@@ -188,6 +214,15 @@ function SegmentPopup({
   const [imgUrl, setImgUrl] = useState<string | null>(null)
   const [imgLoading, setImgLoading] = useState(true)
 
+  // Resolve the OsmWay at the click point. This is more robust than
+  // relying on seg.wayIds — buildSegments coalesces multiple source
+  // ways into one segment, and some segments (e.g. the very first
+  // stub from the start pin) have no wayIds at all. Reading from the
+  // tile at click time gives us the actual way the user tapped on.
+  const nearest = useMemo(() => findNearestWay(latlng[0], latlng[1]), [latlng])
+  const wayToAvoid: number | null = nearest?.way.osmId ?? null
+  const tags: Record<string, string> = nearest?.way.tags ?? {}
+
   useEffect(() => {
     let cancelled = false
     setImgLoading(true)
@@ -199,33 +234,31 @@ function SegmentPopup({
     return () => { cancelled = true }
   }, [latlng])
 
-  // Look up the way's OSM tags from cached tiles so the popup can show
-  // classification signals (surface, cycleway, speed) that help the
-  // user judge whether the classifier was right.
-  const tagSummary = useMemo(() => {
-    const wayId = seg.wayIds?.[0]
-    if (wayId == null) return null
-    const { row, col } = latLngToTile(latlng[0], latlng[1])
-    const tile = getCachedTile(row, col)
-    if (!tile) return null
-    const way = tile.find((w) => w.osmId === wayId)
-    if (!way) return null
-    const tags = way.tags
+  const tagRows = useMemo(() => {
     const rows: string[] = []
     if (tags.highway) rows.push(`highway=${tags.highway}`)
     if (tags.cycleway) rows.push(`cycleway=${tags.cycleway}`)
     if (tags['cycleway:right']) rows.push(`cycleway:right=${tags['cycleway:right']}`)
     if (tags['cycleway:left']) rows.push(`cycleway:left=${tags['cycleway:left']}`)
+    if (tags['cycleway:both']) rows.push(`cycleway:both=${tags['cycleway:both']}`)
     if (tags.surface) rows.push(`surface=${tags.surface}`)
+    if (tags.smoothness) rows.push(`smoothness=${tags.smoothness}`)
     if (tags.maxspeed) rows.push(`maxspeed=${tags.maxspeed}`)
     if (tags.bicycle_road === 'yes') rows.push('bicycle_road=yes')
-    return { rows, name: tags.name }
-  }, [seg, latlng])
+    if (tags.segregated) rows.push(`segregated=${tags.segregated}`)
+    return rows
+  }, [tags])
 
   const legendItem = getLegendItem(seg.itemName, profileKey)
   const title = seg.isWalking
     ? '🚶 Walk your bike here'
     : `${legendItem?.icon ?? ''} ${seg.itemName ?? 'Route segment'}`
+
+  // Reroute-around: prefer the way resolved at click time; otherwise
+  // fall back to the segment's full wayIds list (older behavior).
+  const rerouteWayIds: number[] = wayToAvoid != null
+    ? [wayToAvoid]
+    : (seg.wayIds ?? [])
 
   return (
     <Popup
@@ -235,8 +268,8 @@ function SegmentPopup({
     >
       <div className="segment-popup-body">
         <div className="segment-popup-title">{title}</div>
-        {tagSummary?.name && (
-          <div className="segment-popup-name">{tagSummary.name}</div>
+        {tags.name && (
+          <div className="segment-popup-name">{tags.name}</div>
         )}
 
         {imgLoading && <div className="segment-popup-img-loading">Loading street view…</div>}
@@ -244,22 +277,22 @@ function SegmentPopup({
           <img src={imgUrl} alt="Street view" className="segment-popup-img" loading="lazy" />
         )}
         {!imgLoading && !imgUrl && (
-          <div className="segment-popup-img-missing">No street view available for this segment.</div>
+          <div className="segment-popup-img-missing">No street view available nearby.</div>
         )}
 
-        {tagSummary && tagSummary.rows.length > 0 && (
+        {tagRows.length > 0 && (
           <div className="segment-popup-tags">
-            {tagSummary.rows.map((r, i) => (
+            {tagRows.map((r, i) => (
               <div key={i} className="segment-popup-tag">{r}</div>
             ))}
           </div>
         )}
 
         <div className="segment-popup-actions">
-          {onReroute && (seg.wayIds?.length ?? 0) > 0 && (
+          {onReroute && rerouteWayIds.length > 0 && (
             <button
               className="segment-popup-btn segment-popup-btn-primary"
-              onClick={() => { onReroute(seg.wayIds ?? []); onClose() }}
+              onClick={() => { onReroute(rerouteWayIds); onClose() }}
             >
               ↩ Reroute around
             </button>
