@@ -47,7 +47,8 @@ export default function IntroCard({ forced = false, onClose }: Props) {
         <p className="intro-lede">
           A bike route planner for parents — routes that match who
           you're riding with, from a toddler on a balance bike to an
-          adult training ride.
+          adult training ride. Walks your family past scary
+          intersections rather than routing you through them.
         </p>
 
         <ol className="intro-steps">
