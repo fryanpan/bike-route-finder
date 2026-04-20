@@ -8,6 +8,7 @@ import type { QuickOption } from './components/SearchBar'
 import PlaceCard from './components/PlaceCard'
 import RoutingHeader from './components/RoutingHeader'
 import FlagSegmentModal from './components/FlagSegmentModal'
+import FeedbackForm from './components/FeedbackForm'
 import IntroCard from './components/IntroCard'
 import { saveFeedbackEntry, type FeedbackVerdict } from './services/feedbackQueue'
 // Chunks A (Layer 2 Berlin overlay) and D (personal preferences) are
@@ -186,6 +187,9 @@ export default function App() {
   // Intro card — shown automatically on first visit, re-openable via
   // the ? help button. `introForced` toggles re-show for returning users.
   const [introForced, setIntroForced] = useState(false)
+
+  // Feedback form modal — opened via the floating 💬 FAB at bottom-right.
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   // Chunk D (personal preferences) is shelved. See import-block note.
 
@@ -838,6 +842,19 @@ export default function App() {
       {/* Chunk D PreferencesModal shelved pending user feedback. */}
 
       <IntroCard forced={introForced} onClose={() => setIntroForced(false)} />
+
+      <button
+        className="feedback-bubble"
+        onClick={() => setFeedbackOpen(true)}
+        aria-label="Send feedback"
+        title="Send feedback"
+      >
+        💬
+      </button>
+
+      {feedbackOpen && (
+        <FeedbackForm onClose={() => setFeedbackOpen(false)} />
+      )}
 
       {flagSegmentTarget && (
         <FlagSegmentModal
