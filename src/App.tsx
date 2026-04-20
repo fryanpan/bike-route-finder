@@ -8,6 +8,7 @@ import type { QuickOption } from './components/SearchBar'
 import PlaceCard from './components/PlaceCard'
 import RoutingHeader from './components/RoutingHeader'
 import FlagSegmentModal from './components/FlagSegmentModal'
+import IntroCard from './components/IntroCard'
 import { saveFeedbackEntry, type FeedbackVerdict } from './services/feedbackQueue'
 // Chunks A (Layer 2 Berlin overlay) and D (personal preferences) are
 // shelved pending real user feedback on what routing customization
@@ -181,6 +182,10 @@ export default function App() {
 
   // Segment flag modal state
   const [flagSegmentTarget, setFlagSegmentTarget] = useState<RouteSegment | null>(null)
+
+  // Intro card — shown automatically on first visit, re-openable via
+  // the ? help button. `introForced` toggles re-show for returning users.
+  const [introForced, setIntroForced] = useState(false)
 
   // Chunk D (personal preferences) is shelved. See import-block note.
 
@@ -716,7 +721,14 @@ export default function App() {
         {/* Bike layer status + audit gear + preferences */}
         <div className="map-bike-layer-toggle">
           <div className="map-bike-layer-buttons">
-            {/* Chunk D (preferences) button removed pending user feedback. */}
+            <button
+              className="audit-gear-btn"
+              onClick={() => setIntroForced(true)}
+              title="What is this? (help)"
+              aria-label="Show intro"
+            >
+              ?
+            </button>
             <button
               className="audit-gear-btn"
               onClick={() => {
@@ -824,6 +836,8 @@ export default function App() {
       </div>
 
       {/* Chunk D PreferencesModal shelved pending user feedback. */}
+
+      <IntroCard forced={introForced} onClose={() => setIntroForced(false)} />
 
       {flagSegmentTarget && (
         <FlagSegmentModal

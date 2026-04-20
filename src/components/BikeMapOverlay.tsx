@@ -9,7 +9,11 @@ import type { OsmWay } from '../utils/types'
 
 // Max tiles allowed in viewport. Beyond this the map is too zoomed out to be
 // useful — show the "zoom in" prompt instead of firing many parallel requests.
-const MAX_VISIBLE_TILES = 12
+// 30 covers reasonable metro views: Potsdam→downtown Berlin (15 tiles),
+// Greater London overview (30), Bay Area overview (30). Still blocks
+// world-zoom. The semaphore in overpass.ts caps concurrent fetches to 2
+// so a full cold load never bursts the API.
+const MAX_VISIBLE_TILES = 30
 
 // Canvas renderer created once at module level — shared across all polylines.
 // Canvas is 5-10x faster than SVG for many lines on mobile.
