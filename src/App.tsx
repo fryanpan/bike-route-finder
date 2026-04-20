@@ -31,7 +31,6 @@ import {
   computeRouteQuality,
 } from './utils/classify'
 import { CITY_PRESETS } from './services/audit'
-import { fetchRules } from './services/rules'
 import type { ClassificationRule } from './services/rules'
 // Chunk A shelved: BERLIN_PROFILE import removed. See note above.
 import RouteList from './components/RouteList'
@@ -272,8 +271,11 @@ export default function App() {
     return params.has('admin')
   })
 
-  // Region classification rules (fetched from KV based on map viewport)
-  const [regionRules, setRegionRules] = useState<ClassificationRule[]>([])
+  // Per-region classification rules were removed pre-launch (see
+  // src/services/rules.ts). Downstream modules still accept an optional
+  // `regionRules?` param, so we thread an empty array through for the
+  // typed shape without hitting the network.
+  const regionRules: ClassificationRule[] = []
   const [activeRegion, setActiveRegion] = useState<string | null>(null)
 
   // Chunk A (Layer 2 Berlin overlay) shelved — always null for now.
@@ -283,7 +285,9 @@ export default function App() {
   // there is no longer an "auto-show download banner" flow. Power users can
   const tileCacheCheckedRef = useRef(false)
 
-  // Detect which city preset the map center falls within
+  // Tag user-facing events (feedback, flag-segment) with the current region
+  // so Bryan can filter submissions by city. No network fetch here — this
+  // is purely a viewport-to-city-name mapping.
   useEffect(() => {
     const loc = currentLocation ?? { lat: 52.52, lng: 13.405 } // default Berlin
     const match = CITY_PRESETS.find((c) =>
@@ -291,11 +295,7 @@ export default function App() {
       loc.lng >= c.bbox.west && loc.lng <= c.bbox.east
     )
     const region = match ? match.name.toLowerCase() : null
-    if (region && region !== activeRegion) {
-      setActiveRegion(region)
-      fetchRules(region).then((r) => setRegionRules(r.rules))
-        .catch(() => { /* ignore */ })
-    }
+    if (region !== activeRegion) setActiveRegion(region)
   }, [currentLocation, activeRegion])
 
   // On app load: prime the in-memory cache from the lazy per-tile
