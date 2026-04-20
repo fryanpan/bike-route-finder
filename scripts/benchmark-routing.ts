@@ -133,19 +133,20 @@ async function fetchTile(row: number, col: number): Promise<OsmWay[]> {
   return ways
 }
 
-async function fetchBerlinTiles(): Promise<OsmWay[]> {
-  const south = 52.34, north = 52.68, west = 13.08, east = 13.80
-  const minRow = Math.floor(south / TILE_DEGREES)
-  const maxRow = Math.floor(north / TILE_DEGREES)
-  const minCol = Math.floor(west / TILE_DEGREES)
-  const maxCol = Math.floor(east / TILE_DEGREES)
+interface CityBbox { south: number; west: number; north: number; east: number }
+
+async function fetchTilesForCity(cityName: string, bbox: CityBbox): Promise<OsmWay[]> {
+  const minRow = Math.floor(bbox.south / TILE_DEGREES)
+  const maxRow = Math.floor(bbox.north / TILE_DEGREES)
+  const minCol = Math.floor(bbox.west / TILE_DEGREES)
+  const maxCol = Math.floor(bbox.east / TILE_DEGREES)
 
   const tiles: Array<{ row: number; col: number }> = []
   for (let r = minRow; r <= maxRow; r++)
     for (let c = minCol; c <= maxCol; c++)
       tiles.push({ row: r, col: c })
 
-  console.log(`Fetching ${tiles.length} tiles for Berlin...`)
+  console.log(`Fetching ${tiles.length} tiles for ${cityName}...`)
   const allWays: OsmWay[] = []
 
   for (let i = 0; i < tiles.length; i += 2) {
@@ -283,29 +284,82 @@ async function brouterRoute(startLat: number, startLng: number, endLat: number, 
 
 // ── Test cases ───────────────────────────────────────────────────────────
 
-const HOME = { lat: 52.5016, lng: 13.4103, label: 'Home' }
-const SCHOOL = { lat: 52.5105, lng: 13.4247, label: 'School' }
-const BRANDENBURGER_TOR = { lat: 52.5163, lng: 13.3777, label: 'Brandenburger Tor' }
-const THAIPARK = { lat: 52.4921, lng: 13.3147, label: 'Thaipark' }
+type LatLng = { lat: number; lng: number; label: string }
 
-const DESTINATIONS = [
-  { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' },
-  { lat: 52.5284, lng: 13.3727, label: 'Hamburger Bahnhof' },
-  { lat: 52.5219, lng: 13.4133, label: 'Alexanderplatz' },
-  { lat: 52.5130, lng: 13.4070, label: 'Fischerinsel Swimming' },
-  { lat: 52.5169, lng: 13.4019, label: 'Humboldt Forum' },
-  { lat: 52.4910, lng: 13.4220, label: 'Nonne und Zwerg' },
-  { lat: 52.4750, lng: 13.4340, label: 'Stadtbad Neukoelln' },
-  { lat: 52.5410, lng: 13.5790, label: 'Garten der Welt' },
-  { lat: 52.5300, lng: 13.4519, label: 'SSE Schwimmhalle' },
-  { lat: 52.4898, lng: 13.3904, label: 'Ararat Bergmannstr' },
-]
+interface CityConfig {
+  key: string                            // 'berlin', 'sf'
+  displayName: string
+  bbox: CityBbox
+  origins: LatLng[]                      // each origin × destinations
+  destinations: LatLng[]
+  extraRoutes: Array<{ origin: LatLng; dest: LatLng }>
+}
 
-// Additional specific route pairs beyond Home/School × Destinations
-const EXTRA_ROUTES: Array<{ origin: typeof HOME; dest: typeof HOME }> = [
-  { origin: BRANDENBURGER_TOR, dest: { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' } },
-  { origin: THAIPARK, dest: { lat: 52.4867, lng: 13.3546, label: 'Tranxx' } },
-]
+const BERLIN: CityConfig = {
+  key: 'berlin',
+  displayName: 'Berlin',
+  bbox: { south: 52.34, west: 13.08, north: 52.68, east: 13.80 },
+  origins: [
+    { lat: 52.5016, lng: 13.4103, label: 'Home' },     // Dresdener Str area, Kreuzberg
+    { lat: 52.5105, lng: 13.4247, label: 'School' },   // Wilhelmine-Gemberg-Weg
+  ],
+  destinations: [
+    { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' },
+    { lat: 52.5284, lng: 13.3727, label: 'Hamburger Bahnhof' },
+    { lat: 52.5219, lng: 13.4133, label: 'Alexanderplatz' },
+    { lat: 52.5130, lng: 13.4070, label: 'Fischerinsel Swimming' },
+    { lat: 52.5169, lng: 13.4019, label: 'Humboldt Forum' },
+    { lat: 52.4910, lng: 13.4220, label: 'Nonne und Zwerg' },
+    { lat: 52.4750, lng: 13.4340, label: 'Stadtbad Neukoelln' },
+    { lat: 52.5410, lng: 13.5790, label: 'Garten der Welt' },
+    { lat: 52.5300, lng: 13.4519, label: 'SSE Schwimmhalle' },
+    { lat: 52.4898, lng: 13.3904, label: 'Ararat Bergmannstr' },
+  ],
+  extraRoutes: [
+    { origin: { lat: 52.5163, lng: 13.3777, label: 'Brandenburger Tor' },
+      dest:   { lat: 52.5079, lng: 13.3376, label: 'Berlin Zoo' } },
+    { origin: { lat: 52.4921, lng: 13.3147, label: 'Thaipark' },
+      dest:   { lat: 52.4867, lng: 13.3546, label: 'Tranxx' } },
+  ],
+}
+
+// San Francisco — 10 destinations + 2 origins (Mission + Richmond).
+// Picked to exercise a variety of infra types: Panhandle + Wiggle
+// (cycleway-heavy), Market St (LTS-2 painted lane), Great Highway
+// (car-free by default as of 2024), Mission St (busy arterial),
+// Ocean Beach trail (mostly car-free), 3rd Street (medium-LTS),
+// JFK Promenade (car-free in Golden Gate Park). Extra routes include
+// a known tough route (Inner Sunset → Presidio) that crosses several
+// mode boundaries.
+const SF: CityConfig = {
+  key: 'sf',
+  displayName: 'San Francisco',
+  bbox: { south: 37.70, west: -122.52, north: 37.82, east: -122.38 },
+  origins: [
+    { lat: 37.7598, lng: -122.4148, label: 'Home (Mission / Valencia)' },
+    { lat: 37.7815, lng: -122.4644, label: 'School (Richmond / Geary)' },
+  ],
+  destinations: [
+    { lat: 37.7694, lng: -122.4862, label: 'Golden Gate Park JFK Promenade' },
+    { lat: 37.7750, lng: -122.4186, label: 'Civic Center Plaza' },
+    { lat: 37.7958, lng: -122.3939, label: 'Ferry Building' },
+    { lat: 37.7608, lng: -122.4267, label: 'Mission Dolores Park' },
+    { lat: 37.7707, lng: -122.4434, label: 'Panhandle (Fell + Masonic)' },
+    { lat: 37.7690, lng: -122.5108, label: 'Ocean Beach (Judah)' },
+    { lat: 37.7765, lng: -122.3937, label: 'SF Museum of Modern Art' },
+    { lat: 37.7988, lng: -122.4375, label: 'Lombard + Van Ness' },
+    { lat: 37.7852, lng: -122.4120, label: 'Chinatown (Grant + Clay)' },
+    { lat: 37.7338, lng: -122.4195, label: 'Bernal Heights Park' },
+  ],
+  extraRoutes: [
+    { origin: { lat: 37.7636, lng: -122.4666, label: 'Inner Sunset (9th + Judah)' },
+      dest:   { lat: 37.8002, lng: -122.4663, label: 'Presidio Main Post' } },
+    { origin: { lat: 37.7597, lng: -122.4148, label: 'Mission' },
+      dest:   { lat: 37.8087, lng: -122.4098, label: 'Fisherman\'s Wharf' } },
+  ],
+}
+
+const CITIES: Record<string, CityConfig> = { berlin: BERLIN, sf: SF }
 
 // ── Main ─────────────────────────────────────────────────────────────────
 
@@ -313,16 +367,24 @@ interface RoutePair { origin: { lat: number; lng: number; label: string }; dest:
 
 async function main() {
   const skipExternal = process.argv.includes('--no-external')
-  console.log(`=== Routing Benchmark: Client (5 modes)${skipExternal ? '' : ' + Valhalla + BRouter'} ===\n`)
+  const cityFlag = process.argv.find((a) => a.startsWith('--city='))
+  const cityKey = cityFlag ? cityFlag.slice('--city='.length) : 'berlin'
+  const city = CITIES[cityKey]
+  if (!city) {
+    console.error(`Unknown city "${cityKey}". Available: ${Object.keys(CITIES).join(', ')}`)
+    process.exit(1)
+  }
 
-  const allWays = await fetchBerlinTiles()
+  console.log(`=== Routing Benchmark: ${city.displayName} · Client (5 modes)${skipExternal ? '' : ' + Valhalla + BRouter'} ===\n`)
+
+  const allWays = await fetchTilesForCity(city.displayName, city.bbox)
 
   // Build all the pairs we want to test.
   const pairs: RoutePair[] = []
-  for (const origin of [HOME, SCHOOL]) {
-    for (const dest of DESTINATIONS) pairs.push({ origin, dest })
+  for (const origin of city.origins) {
+    for (const dest of city.destinations) pairs.push({ origin, dest })
   }
-  for (const p of EXTRA_ROUTES) pairs.push(p)
+  for (const p of city.extraRoutes) pairs.push(p)
 
   // Per-mode client routing: build a graph per mode and route every pair.
   interface ModeRow { mode: ModeKey; pair: string; found: boolean; distanceKm: number; durationMin: number; preferredPct: number; walkingPct: number }
