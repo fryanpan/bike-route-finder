@@ -56,6 +56,37 @@ Routes found: 20/22 in both runs. The 2 failing pairs are the SSE Schwimmhalle d
 
 **kid-starting-out + training barely move** — both modes' acceptance sets are relatively untouched by the overhaul (starting-out was always 1a only; training picked up the elevated-sidewalk exclusion but it rarely affects Berlin routes).
 
+## Per-mode level breakdown (%-of-route-distance per PathLevel)
+
+Split of preferred % into LTS-1a / 1b / 2a and the non-preferred tail, from the post-overhaul runs. LTS 2b for kid modes reflects bridge-walk distance on quiet residentials that the mode rejects for riding.
+
+### San Francisco
+
+| Mode | LTS 1a | LTS 1b | LTS 2a | LTS 2b | LTS 3 | LTS 4 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| kid-starting-out | 32% | 7% | 4% | 45% | 12% | 0% |
+| kid-confident | 35% | 16% | 3% | 34% | 12% | 0% |
+| kid-traffic-savvy | 28% | 14% | 12% | 45% | 1% | 0% |
+| carrying-kid | 8% | 7% | 9% | 75% | 1% | 0% |
+| training | 7% | 6% | 9% | 65% | 14% | 0% |
+
+### Berlin
+
+| Mode | LTS 1a | LTS 1b | LTS 2a | LTS 2b | LTS 3 | LTS 4 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| kid-starting-out | 57% | 6% | 6% | 11% | 20% | 0% |
+| kid-confident | 51% | 17% | 5% | 13% | 14% | 0% |
+| kid-traffic-savvy | 41% | 20% | 6% | 20% | 13% | 0% |
+| carrying-kid | 24% | 12% | 5% | 48% | 11% | 0% |
+| training | 19% | 7% | 7% | 40% | 28% | 0% |
+
+### Reading the split
+
+- **LTS 1a (solid green on map)** — Car-free infrastructure. Berlin kid-starting-out hits 57% here; SF only 32%. Reflects Berlin's mature cycleway network vs. SF's sparser car-free grid (Panhandle + JFK Promenade are the main contributors in SF).
+- **LTS 1b (long-dash green)** — Bike boulevard / Fahrradstraße / living street. Berlin kid-confident picks up 17% at this tier (Fahrradstraßen dense in Kreuzberg/Friedrichshain/Mitte); SF kid-confident gets 16% from Slow Streets and living streets.
+- **LTS 2a (dots green)** — Painted bike lane on quiet streets. Underrepresented on both (3–12%). Reflects that most painted lanes in our test cities are on >30 km/h streets, which our model demotes to LTS 3.
+- **LTS 2b / LTS 3** — accepted-but-orange. For carrying-kid the 48%/75% at 2b is expected — plain residentials are the primary fabric in SF. For training, the 28% Berlin LTS 3 is cost-multiplied (2×) but still routed when nothing better exists.
+
 ## Cross-router comparison (clientRouter vs Valhalla vs BRouter)
 
 _Not run for this benchmark._ `--no-external` was used to keep iteration time under 5 min; external runs add ~2s rate-limit pauses × 22 Berlin routes × 5 modes × 2 routers ≈ 44 min. Plan to run overnight and append results.
