@@ -16,7 +16,7 @@
 // docs/product/plans/2026-04-13-three-layer-scoring-plan.md for the Option C
 // architecture decision.
 
-import type { LtsLevel } from '../utils/lts'
+import type { LtsLevel, PathLevel } from '../utils/lts'
 
 export type RideMode =
   | 'kid-starting-out'
@@ -50,34 +50,12 @@ export interface ModeRule {
   label: string
   description: string
 
-  // LTS bands this mode accepts. Non-contiguous profiles are expressible.
-  ltsAccept: LtsLevel[]
-
-  // Stricter-than-Furth-LTS-1 constraint. When true, the edge must be
-  // physically car-free (carFree === true). Bike-prioritized shared surfaces
-  // (Fahrradstraßen, living streets, SF Slow Streets, Dutch fietsstraten) are
-  // NOT accepted even though they're engineered to give bikes priority,
-  // because cars are still legally allowed on them and a kid just learning to
-  // ride can't reliably handle even an occasional car interaction. Accepted
-  // infrastructure:
-  //
-  //   - cycleway, car-free path, pedestrianised zone, curb-separated cycle
-  //     track on a sidewalk, forest/farm track.
-  //
-  // Excluded (all have some car presence):
-  //   - Fahrradstraßen, living streets, SF Slow Streets
-  //   - Ordinary quiet residential streets
-  //
-  // Real-world caveat: rejected edges still enter the graph as bridge-walks
-  // at walkingSpeedKmh (see applyModeRule + isBridgeWalkable in clientRouter),
-  // so the graph stays connected. A kid-starting-out rider walks their bike
-  // across any Fahrradstraße segment rather than riding it.
-  requireCarFree?: boolean
-
-  // Extra conditions that must hold for specific LTS tiers above 1.
-  // Example: kid-traffic-savvy accepts LTS 2 only when bike infra is present,
-  // speeds are ≤30 km/h, and traffic density is moderate or lower.
-  ltsConditions?: Partial<Record<LtsLevel, LtsCondition>>
+  // Path levels this mode accepts. Drives routing acceptance directly — the
+  // LTS tier number alone is ambiguous (Furth treats quiet residential as
+  // LTS 1 but our kid-first model treats it as 2b), so we key off pathLevel
+  // which encodes both the Furth tier AND our a/b refinement. See
+  // docs/product/plans/2026-04-21-path-categories-plan.md §3.
+  acceptedLevels: Set<PathLevel>
 
   // Surface tolerance. Any surface string not in this set is rejected,
   // EXCEPT cobblestone/sett which are handled separately below.
@@ -99,6 +77,23 @@ export interface ModeRule {
   // Optional gradient cap (percent grade). Route is rejected if any segment
   // exceeds this. Useful for non-e-assist modes on hilly cities.
   gradientCapPct?: number
+
+  // Cost multiplier per PathLevel. Defaults to 1.0 for any level not listed.
+  // Higher = more expensive per metre, biasing the router away from those
+  // edges even when they're accepted. See docs/product/plans/2026-04-21-
+  // path-categories-plan.md §3. Ordering of preferences comes from these
+  // multipliers plus speed.
+  levelMultipliers?: Partial<Record<PathLevel, number>>
+
+  // Rough-surface cost multiplier (applied on top of levelMultiplier when
+  // `surface ∈ ALWAYS_BAD_SURFACES` or smoothness is bad). Default 1.0.
+  roughSurfaceMultiplier?: number
+
+  // Path types this mode refuses outright even if the level is accepted.
+  // Used by training to exclude "Elevated sidewalk path" (narrow, pedestrian-
+  // heavy) while still accepting the rest of 1a. The values match
+  // classifyOsmTagsToItem's output strings.
+  rejectPathTypes?: Set<string>
 }
 
 // Surfaces universally OK for paved riding across all modes.
@@ -141,14 +136,15 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'can\'t be trusted to handle even an occasional car interaction. Bridge-walks short ' +
       'non-car-free gaps (Fahrradstraße, residential, crosswalk) on the sidewalk at walking ' +
       'pace. Can walk across short cobblestone stretches at walking pace.',
-    ltsAccept: [1],
-    requireCarFree: true,
+    acceptedLevels: new Set<PathLevel>(['1a']),
+    levelMultipliers: {},
+    roughSurfaceMultiplier: 5.0,
     surfaceOk: PAVED_AND_SOFT,
     cobbleHandling: 'walking_pace',
     // ~5 km/h typical balance-bike or early pedaling pace
     ridingSpeedKmh: 5,
     slowSpeedKmh: 3,
-    walkingSpeedKmh: 2,
+    walkingSpeedKmh: 1,
   },
 
   'kid-confident': {
@@ -160,14 +156,14 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'life-and-death decisions. Accepts full Furth LTS 1: physically separated tracks plus ' +
       'quiet residential streets (≤30 km/h, low volume) even without bike-priority ' +
       'designation. Can ride short cobblestone stretches slowly as a learning opportunity.',
-    ltsAccept: [1],
-    // No requireCarFree — accepts full Furth LTS 1 including ordinary quiet residential + bikePriority.
-    // Uses PAVED_AND_SOFT (superset of kid-starting-out's surface set) so
+    acceptedLevels: new Set<PathLevel>(['1a', '1b']),
+    levelMultipliers: {},
+    roughSurfaceMultiplier: 5.0,
+    // PAVED_AND_SOFT is a superset of kid-starting-out's surface set so
     // toggling up in skill never rejects an edge that the stricter mode
     // was willing to ride.
     surfaceOk: PAVED_AND_SOFT,
     cobbleHandling: 'slow_pace',
-    // Kid-pedal bikes often max out around 10 km/h — kid has to move their legs fast
     ridingSpeedKmh: 10,
     slowSpeedKmh: 5,
     walkingSpeedKmh: 2,
@@ -182,26 +178,15 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'Accepts Furth LTS 1 in full, plus LTS 2 conditionally: must have bike infrastructure, ' +
       'speeds ≤50 km/h, and moderate traffic density (never busy arterials). ' +
       'Avoids cobblestones — the kid is going 15+ km/h now and cobbles are jarring at speed.',
-    ltsAccept: [1, 2],
-    ltsConditions: {
-      // Furth's LTS 2 painted-lane criterion allows up to ~48 km/h (30 mph);
-      // we use 50 to match Berlin/European 50 km/h defaults. Earlier drafts
-      // used 30 but that broke routing in Berlin because many tertiary
-      // streets don't have maxspeed tagged, so their inferred speed falls
-      // back to the 50 km/h road-class default and fails a 30 km/h cap
-      // even when the actual LTS logic (which uses raw maxspeed=0) classified
-      // them as LTS 2. The 50 km/h cap keeps primary/trunk arterials out
-      // (they infer 60/80) while admitting typical painted-lane tertiary/
-      // secondary streets the kid can actually handle at age 8+.
-      2: {
-        requireBikeInfra: true,
-        maxSpeedKmh: 50,
-        maxTrafficDensity: 'moderate',
-      },
-    },
+    // Accepts 1a-2a outright plus 2b with a 1.5× cost multiplier. LTS 3+
+    // rejected (bridge-walks if a sidewalk exists). The speed-cap/density
+    // filters of the old ltsConditions model are now baked into classifyEdge
+    // (painted lane on >30 km/h already classifies as pathLevel 3).
+    acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b']),
+    levelMultipliers: { '2b': 1.5 },
+    roughSurfaceMultiplier: 5.0,
     surfaceOk: PAVED,
     cobbleHandling: 'reject',
-    // ~16 km/h typical cruising on a small kid bike in traffic-aware mode
     ridingSpeedKmh: 16,
     slowSpeedKmh: 10,
     walkingSpeedKmh: 3,
@@ -216,7 +201,11 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'paving — a trailer or bakfiets on cobble is painful for the passenger. ' +
       'Hardware variants (trailer / longtail / bucket / child seat) collapse into one ' +
       'mode; fine-grained preferences (width, e-assist, gradient) are expressed in Layer 3.',
-    ltsAccept: [1, 2, 3],
+    // Accepts 1a-2b outright plus LTS 3 with a 2× cost multiplier. LTS 4
+    // rejected (bridge-walks if a sidewalk exists).
+    acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b', '3']),
+    levelMultipliers: { '3': 2.0 },
+    roughSurfaceMultiplier: 5.0,
     surfaceOk: SMOOTH_ONLY,
     cobbleHandling: 'reject',
     ridingSpeedKmh: 20,
@@ -230,8 +219,13 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
     description:
       'Adult fitness ride. Prioritizes 30 km/h flow. Still safety-conscious — accepts ' +
       'LTS 1–3 but avoids crowded greenways where pedestrian traffic slows riding. ' +
-      'Smooth surfaces only; avoids cobbles, tram tracks, and unpaved sections.',
-    ltsAccept: [1, 2, 3],
+      'Smooth surfaces only; avoids cobbles, tram tracks, and unpaved sections. Rejects ' +
+      'elevated sidewalk paths — they\'re narrow and pedestrian-heavy, which kills the ' +
+      '30 km/h flow.',
+    acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b', '3']),
+    levelMultipliers: {},
+    roughSurfaceMultiplier: 5.0,
+    rejectPathTypes: new Set(['Elevated sidewalk path']),
     surfaceOk: SMOOTH_ONLY,
     cobbleHandling: 'reject',
     ridingSpeedKmh: 30,
@@ -250,89 +244,88 @@ import type { LtsClassification } from '../utils/lts'
  *   rejected — edge is excluded from the routing graph entirely
  */
 export type ModeDecision =
-  | { accepted: true; speedKmh: number; isWalking: boolean }
+  | { accepted: true; speedKmh: number; isWalking: boolean; costMultiplier: number }
   | { accepted: false; reason: string }
+
+// Surfaces that are always rough regardless of mode. Duplicated from
+// classify.ts to avoid a cross-module import cycle (modes is consumed by
+// classify via clientRouter).
+const ROUGH_SURFACES = new Set([
+  'cobblestone', 'sett', 'unhewn_cobblestone', 'cobblestone:flattened',
+  'gravel', 'unpaved', 'dirt', 'earth', 'ground', 'mud', 'sand',
+  'grass', 'fine_gravel', 'pebblestone', 'woodchips',
+])
 
 /**
  * Check whether a mode accepts an edge, given its Layer 1 classification
  * (already adjusted by any Layer 2 region overlay).
  *
- * Returns a decision with the appropriate speed, or a rejection with a reason.
- * Reasons are human-readable to help debug routing surprises.
+ * Acceptance keys off `classification.pathLevel` (our LTS 1a/1b/2a/2b/3/4
+ * extension of Furth). Cost multipliers come from `rule.levelMultipliers`
+ * and apply on top of the distance/speed base cost — e.g. kid-traffic-savvy
+ * accepts LTS 2b (plain residentials) but marks them 1.5× more expensive
+ * than LTS 2a (painted lane on quiet street), so the router prefers
+ * bike-infra-present streets when one exists.
+ *
+ * Bridge-walk connectivity invariant (see .claude/rules/routing-changes.md):
+ * when this returns `accepted: false`, the caller (clientRouter) still
+ * adds the edge to the graph as a bridge-walk at `walkingSpeedKmh`. Hard
+ * rejection is reserved for motorway/trunk and `sidewalk=no` elsewhere.
  */
 export function applyModeRule(
   rule: ModeRule,
   classification: LtsClassification,
+  pathType?: string | null,
 ): ModeDecision {
-  const { lts, carFree, bikeInfra, speedKmh: roadSpeedKmh, trafficDensity, surface } = classification
+  const { pathLevel, surface } = classification
 
-  // LTS band check
-  if (!rule.ltsAccept.includes(lts)) {
-    return { accepted: false, reason: `LTS ${lts} not in accepted bands ${rule.ltsAccept.join(',')}` }
+  // Level acceptance.
+  if (!rule.acceptedLevels.has(pathLevel)) {
+    return { accepted: false, reason: `path level ${pathLevel} not accepted` }
   }
 
-  // Car-free-only constraint: edge must be physically car-free.
-  // See ModeRule.requireCarFree for the full rationale.
-  if (rule.requireCarFree && !carFree) {
-    return { accepted: false, reason: 'requires physically car-free infrastructure' }
+  // Path-type exclusion (training rejects elevated sidewalk paths).
+  if (pathType && rule.rejectPathTypes?.has(pathType)) {
+    return { accepted: false, reason: `path type '${pathType}' rejected by mode` }
   }
 
-  // Per-tier conditions (only checked for tiers > 1)
-  const condition = rule.ltsConditions?.[lts]
-  if (condition) {
-    if (condition.requireBikeInfra && !bikeInfra) {
-      return { accepted: false, reason: `LTS ${lts} requires bike infrastructure` }
-    }
-    if (condition.maxSpeedKmh != null && roadSpeedKmh != null && roadSpeedKmh > condition.maxSpeedKmh) {
-      return { accepted: false, reason: `road speed ${roadSpeedKmh} km/h exceeds cap ${condition.maxSpeedKmh}` }
-    }
-    if (condition.maxTrafficDensity && trafficDensity && rankTraffic(trafficDensity) > rankTraffic(condition.maxTrafficDensity)) {
-      return { accepted: false, reason: `traffic density '${trafficDensity}' exceeds cap '${condition.maxTrafficDensity}'` }
-    }
-  }
-
-  // Surface check — cobbles get special handling
+  // Cobble special-case: even when the level is accepted, surface-strict
+  // modes (carrying-kid, training) reject cobbles, and kid modes may
+  // downshift to walking / slow pace.
   if (surface === 'cobblestone' || surface === 'sett' || surface === 'unhewn_cobblestone') {
     switch (rule.cobbleHandling) {
       case 'reject':
         return { accepted: false, reason: 'cobblestone surface' }
       case 'walking_pace':
-        return { accepted: true, speedKmh: rule.walkingSpeedKmh, isWalking: true }
+        return {
+          accepted: true,
+          speedKmh: rule.walkingSpeedKmh,
+          isWalking: true,
+          costMultiplier: rule.roughSurfaceMultiplier ?? 1.0,
+        }
       case 'slow_pace':
-        return { accepted: true, speedKmh: rule.slowSpeedKmh, isWalking: false }
+        return {
+          accepted: true,
+          speedKmh: rule.slowSpeedKmh,
+          isWalking: false,
+          costMultiplier: rule.roughSurfaceMultiplier ?? 1.0,
+        }
     }
   }
 
-  // Non-cobble surface check
+  // Non-cobble surface check — still strict.
   if (rule.surfaceOk && surface && !rule.surfaceOk.has(surface)) {
     return { accepted: false, reason: `surface '${surface}' not in accepted set` }
   }
 
-  // Speed selection for accepted LTS 1 edges.
-  //
-  // Fahrradstraßen, living streets, and SF-style Slow Streets are shared
-  // surfaces in the strict sense (cars are present) but are ENGINEERED to
-  // give bikes priority — drivers are guests, speed limits are low, and
-  // enforcement culture treats cyclists as having right-of-way. The rider
-  // should ride them at full cruising speed, not cautiously, because the
-  // whole point of the infrastructure is that the occasional car yields.
-  //
-  // Ordinary quiet residential (Furth LTS 1 mixed traffic: ≤30 km/h, low
-  // volume, 2-lane, no bike-priority designation) is different: cars are
-  // not legally required to yield, just statistically rare. The rider
-  // stays alert and rides at a cautious pace there.
-  //
-  // So the slowdown only applies when the edge is neither car-free NOR
-  // bike-prioritized. Earlier drafts applied it to ALL shared-surface
-  // LTS 1, which made Fahrradstraßen ride 2× slower than cycleways and
-  // broke the routing intent ("prefer Fahrradstraßen" → "detour onto any
-  // cycleway to avoid Fahrradstraßen").
-  const needsCaution = lts === 1 && !carFree && !classification.bikePriority
-  const speedKmh = needsCaution ? rule.slowSpeedKmh : rule.ridingSpeedKmh
+  const levelMul = rule.levelMultipliers?.[pathLevel] ?? 1.0
+  const roughMul = surface && ROUGH_SURFACES.has(surface) ? (rule.roughSurfaceMultiplier ?? 1.0) : 1.0
+  const costMultiplier = levelMul * roughMul
 
-  return { accepted: true, speedKmh, isWalking: false }
-}
-
-function rankTraffic(t: TrafficDensity): number {
-  return t === 'low' ? 1 : t === 'moderate' ? 2 : 3
+  return {
+    accepted: true,
+    speedKmh: rule.ridingSpeedKmh,
+    isWalking: false,
+    costMultiplier,
+  }
 }

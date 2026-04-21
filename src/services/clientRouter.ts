@@ -213,6 +213,7 @@ export function buildRoutingGraph(
     // much slower than riding.
     let speedKmh: number
     let isWalking: boolean
+    let costMultiplier = 1.0
     if (walkingOnly) {
       speedKmh = rule.walkingSpeedKmh
       isWalking = true
@@ -237,10 +238,12 @@ export function buildRoutingGraph(
       // Runs before applyModeRule so "cobbles are fine" flips surface
       // BEFORE the mode rule decides whether to ride or walk.
       const classification = applyPreferenceAdjustments(regionAdjusted, riderPreference ?? null)
-      const decision = applyModeRule(rule, classification)
+      const itemNameEarly = classifyOsmTagsToItem(tags, profileKey, regionRules)
+      const decision = applyModeRule(rule, classification, itemNameEarly)
       if (decision.accepted) {
         speedKmh = decision.speedKmh
         isWalking = decision.isWalking
+        costMultiplier = decision.costMultiplier
       } else if (isBridgeWalkable(tags)) {
         // Mode rule rejected this edge (too stressful, bad surface, …)
         // but it's still walkable on the sidewalk. Add as a bridge-walk
@@ -280,7 +283,11 @@ export function buildRoutingGraph(
       if (!graph.getNode(id2)) graph.addNode(id2, { lat: lat2, lng: lng2 })
 
       const dist = haversineM(lat1, lng1, lat2, lng2)
-      const cost = dist / speed  // cost = time in seconds
+      // Cost = time-at-effective-speed × level-cost-multiplier.
+      // Multiplier biases the router away from accepted-but-worse infra
+      // (e.g. LTS 2b for traffic-savvy at 1.5×, LTS 3 for carrying-kid at
+      // 2×, rough surfaces at 5×) even when the base speed is unchanged.
+      const cost = (dist / speed) * costMultiplier
       const edgeData: EdgeData = { distance: dist, cost, wayTags: tags, wayId: way.osmId, isWalking }
 
       // Forward edge (always)
