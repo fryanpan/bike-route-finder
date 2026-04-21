@@ -1,7 +1,7 @@
 // Valhalla routing — BENCHMARK ONLY.
-// Not used by the main web app. Kept so we can compare client-side routing
-// quality and timing against the public Valhalla instance from
-// src/services/routerBenchmark.ts and src/components/AuditEvalTab.tsx.
+// Not used by the main web app. Kept so scripts/benchmark-routing.ts can
+// compare client-side routing quality and timing against the public
+// Valhalla instance.
 import { decode } from '../../utils/polyline'
 import { classifyEdgeToItem, buildSegments } from '../../utils/classify'
 import { DEFAULT_PROFILES } from '../../data/profiles'

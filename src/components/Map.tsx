@@ -2,7 +2,7 @@ import L from 'leaflet'
 import { useEffect, useRef, useMemo, useState } from 'react'
 import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
-import { dashArrayForLevel, colorForLevel } from './SimpleLegend'
+import { dashArrayForLevel, colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
 import { getVisibleTiles, getCachedTile, latLngToTile, classifyOsmTagsToItem } from '../services/overpass'
 import { getStreetImage } from '../services/mapillary'
 import BikeMapOverlay from './BikeMapOverlay'
@@ -385,7 +385,7 @@ function RouteDisplay({
                 key={i}
                 positions={seg.coordinates}
                 color={WALKING_COLOR}
-                weight={selected?.index === i ? 16 : 14}
+                weight={selected?.index === i ? 8 : 7}
                 opacity={0.85}
                 dashArray="8 8"
                 eventHandlers={{
@@ -410,12 +410,16 @@ function RouteDisplay({
           const color = legendItem && isPreferred
             ? colorForLevel(legendItem.level)
             : isPreferred ? PREFERRED_COLOR : OTHER_COLOR
+          const baseWeight = isSelected ? 9 : 8
+          const weight = legendItem
+            ? Math.max(3, Math.round(baseWeight * weightMultiplierForLevel(legendItem.level)))
+            : baseWeight
           return (
             <Polyline
               key={i}
               positions={seg.coordinates}
               color={color}
-              weight={isSelected ? 18 : 16}
+              weight={weight}
               opacity={isSelected ? 1 : 0.95}
               dashArray={dashArray}
               eventHandlers={{
@@ -473,7 +477,7 @@ function RouteDisplay({
     <Polyline
       positions={route.coordinates}
       color="#2563eb"
-      weight={16}
+      weight={8}
       opacity={0.9}
     />
   )
@@ -569,7 +573,7 @@ function RouteSuggestions({ route, profileKey, preferredItemNames, regionRules, 
           key={`suggest-${way.osmId ?? i}`}
           positions={way.coordinates}
           color="#10b981"
-          weight={10}
+          weight={5}
           opacity={0.5}
           eventHandlers={{
             click: (e) => {
@@ -686,7 +690,7 @@ export default function Map({
             key={`alt-${i}`}
             positions={altRoute.coordinates}
             color="#64748b"
-            weight={10}
+            weight={5}
             opacity={0.6}
             dashArray="10 6"
             eventHandlers={onSelectRoute ? {

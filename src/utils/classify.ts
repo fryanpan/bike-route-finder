@@ -34,120 +34,119 @@ export interface LegendGroup {
   items: LegendItem[]
 }
 
+// Item names are the display labels emitted by `classifyOsmTagsToItem` in
+// src/services/overpass.ts — keep in sync. Rough surfaces are represented
+// by OsmWay.roughSurface (orthogonal to item name) and are NOT a legend
+// row in any profile.
 export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
   // LTS 1a only. Default mode on first launch.
   'kid-starting-out': [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Bike path',              defaultPreferred: true, level: '1a' },
-      { icon: '🛤️', name: 'Shared foot path',      defaultPreferred: true, level: '1a' },
-      { icon: '🛡️', name: 'Elevated sidewalk path', defaultPreferred: true, level: '1a' },
+      { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
+      { icon: '🛤️', name: 'Shared use path',             defaultPreferred: true, level: '1a' },
+      { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: true, level: '1a' },
     ]},
     { defaultPreferred: false, items: [
-      { icon: '🚲', name: 'Fahrradstrasse',         defaultPreferred: false, level: '1b' },
-      { icon: '🏘️', name: 'Living street',          defaultPreferred: false, level: '1b' },
-      { icon: '🏡', name: 'Bike boulevard',         defaultPreferred: false, level: '1b' },
-      { icon: '〰️', name: 'Painted bike lane',      defaultPreferred: false, level: '2a' },
-      { icon: '🚌', name: 'Shared bus lane',        defaultPreferred: false, level: '2a' },
-      { icon: '🏠', name: 'Residential/local road', defaultPreferred: false, level: '2b' },
-      { icon: '🛣️', name: 'Other road',             defaultPreferred: false, level: '3'  },
-      { icon: '⚠️', name: 'Rough surface',          defaultPreferred: false, level: '2b' },
+      { icon: '🚲', name: 'Fahrradstrasse',              defaultPreferred: false, level: '1b' },
+      { icon: '🏘️', name: 'Living street',               defaultPreferred: false, level: '1b' },
+      { icon: '🏡', name: 'Bike boulevard',              defaultPreferred: false, level: '1b' },
+      { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: false, level: '2a' },
+      { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: false, level: '2a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: false, level: '2b' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3'  },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3'  },
     ]},
   ],
 
-  // LTS 1a + 1b. Adds bike-prioritized shared streets (Fahrradstraßen,
-  // living streets, bike boulevards / SF Slow Streets).
+  // LTS 1a + 1b.
   'kid-confident': [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Bike path',              defaultPreferred: true, level: '1a' },
-      { icon: '🛤️', name: 'Shared foot path',      defaultPreferred: true, level: '1a' },
-      { icon: '🛡️', name: 'Elevated sidewalk path', defaultPreferred: true, level: '1a' },
+      { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
+      { icon: '🛤️', name: 'Shared use path',             defaultPreferred: true, level: '1a' },
+      { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: true, level: '1a' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '🚲', name: 'Fahrradstrasse',         defaultPreferred: true, level: '1b' },
-      { icon: '🏘️', name: 'Living street',          defaultPreferred: true, level: '1b' },
-      { icon: '🏡', name: 'Bike boulevard',         defaultPreferred: true, level: '1b' },
+      { icon: '🚲', name: 'Fahrradstrasse',              defaultPreferred: true, level: '1b' },
+      { icon: '🏘️', name: 'Living street',               defaultPreferred: true, level: '1b' },
+      { icon: '🏡', name: 'Bike boulevard',              defaultPreferred: true, level: '1b' },
     ]},
     { defaultPreferred: false, items: [
-      { icon: '〰️', name: 'Painted bike lane',      defaultPreferred: false, level: '2a' },
-      { icon: '🚌', name: 'Shared bus lane',        defaultPreferred: false, level: '2a' },
-      { icon: '🏠', name: 'Residential/local road', defaultPreferred: false, level: '2b' },
-      { icon: '🛣️', name: 'Other road',             defaultPreferred: false, level: '3'  },
-      { icon: '⚠️', name: 'Rough surface',          defaultPreferred: false, level: '2b' },
+      { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: false, level: '2a' },
+      { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: false, level: '2a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: false, level: '2b' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3'  },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3'  },
     ]},
   ],
 
-  // LTS 1a + 1b + 2a. Adds painted lanes on quiet streets. NOTE: Residential
-  // road (LTS 2b) is NOT preferred — traffic-savvy routing accepts it with a
-  // 1.5× cost multiplier, but the map doesn't treat "quiet residential
-  // without bike infra" as a primary green path.
+  // LTS 1a-2b preferred. 2a and 2b cost 1.5× of 1a/1b in the router.
   'kid-traffic-savvy': [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Bike path',              defaultPreferred: true, level: '1a' },
-      { icon: '🛤️', name: 'Shared foot path',      defaultPreferred: true, level: '1a' },
-      { icon: '🛡️', name: 'Elevated sidewalk path', defaultPreferred: true, level: '1a' },
+      { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
+      { icon: '🛤️', name: 'Shared use path',             defaultPreferred: true, level: '1a' },
+      { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: true, level: '1a' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '🚲', name: 'Fahrradstrasse',         defaultPreferred: true, level: '1b' },
-      { icon: '🏘️', name: 'Living street',          defaultPreferred: true, level: '1b' },
-      { icon: '🏡', name: 'Bike boulevard',         defaultPreferred: true, level: '1b' },
+      { icon: '🚲', name: 'Fahrradstrasse',              defaultPreferred: true, level: '1b' },
+      { icon: '🏘️', name: 'Living street',               defaultPreferred: true, level: '1b' },
+      { icon: '🏡', name: 'Bike boulevard',              defaultPreferred: true, level: '1b' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '〰️', name: 'Painted bike lane',      defaultPreferred: true, level: '2a' },
-      { icon: '🚌', name: 'Shared bus lane',        defaultPreferred: true, level: '2a' },
+      { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
+      { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
     ]},
     { defaultPreferred: false, items: [
-      { icon: '🏠', name: 'Residential/local road', defaultPreferred: false, level: '2b' },
-      { icon: '🛣️', name: 'Other road',             defaultPreferred: false, level: '3'  },
-      { icon: '⚠️', name: 'Rough surface',          defaultPreferred: false, level: '2b' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3' },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3' },
     ]},
   ],
 
-  // LTS 1a-2b. Adult pilots; surface-strict. Willing to cruise on quiet
-  // residentials. LTS 3 accepted only with a 2× cost multiplier (not preferred).
+  // LTS 1a-3 preferred. 2a/2b cost 1.2×; 3 costs 1.5×.
   'carrying-kid': [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Bike path',              defaultPreferred: true, level: '1a' },
-      { icon: '🛤️', name: 'Shared foot path',      defaultPreferred: true, level: '1a' },
+      { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
+      { icon: '🛤️', name: 'Shared use path',             defaultPreferred: true, level: '1a' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '🚲', name: 'Fahrradstrasse',         defaultPreferred: true, level: '1b' },
-      { icon: '🏘️', name: 'Living street',          defaultPreferred: true, level: '1b' },
-      { icon: '🏡', name: 'Bike boulevard',         defaultPreferred: true, level: '1b' },
+      { icon: '🚲', name: 'Fahrradstrasse',              defaultPreferred: true, level: '1b' },
+      { icon: '🏘️', name: 'Living street',               defaultPreferred: true, level: '1b' },
+      { icon: '🏡', name: 'Bike boulevard',              defaultPreferred: true, level: '1b' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '〰️', name: 'Painted bike lane',      defaultPreferred: true, level: '2a' },
-      { icon: '🚌', name: 'Shared bus lane',        defaultPreferred: true, level: '2a' },
-      { icon: '🏠', name: 'Residential/local road', defaultPreferred: true, level: '2b' },
+      { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
+      { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
+    ]},
+    { defaultPreferred: true, items: [
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: true, level: '3' },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: true, level: '3' },
     ]},
     { defaultPreferred: false, items: [
-      { icon: '🛡️', name: 'Elevated sidewalk path', defaultPreferred: false, level: '1a' },
-      { icon: '🛣️', name: 'Other road',             defaultPreferred: false, level: '3'  },
-      { icon: '⚠️', name: 'Rough surface',          defaultPreferred: false, level: '2b' },
+      { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: false, level: '1a' },
     ]},
   ],
 
-  // Adult fitness ride. LTS 1b-3; no elevated sidewalk paths (narrow,
-  // pedestrian-heavy, kill the 30 km/h flow). Secondary use case — Komoot
-  // already does this well.
+  // Adult fitness. LTS 1a-3 at full cost. Elevated sidewalk paths omitted.
   training: [
     { defaultPreferred: true, items: [
-      { icon: '🚴', name: 'Bike path',              defaultPreferred: true, level: '1a' },
-      { icon: '🛤️', name: 'Shared foot path',      defaultPreferred: true, level: '1a' },
+      { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
+      { icon: '🛤️', name: 'Shared use path',             defaultPreferred: true, level: '1a' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '🚲', name: 'Fahrradstrasse',         defaultPreferred: true, level: '1b' },
-      { icon: '🏘️', name: 'Living street',          defaultPreferred: true, level: '1b' },
-      { icon: '🏡', name: 'Bike boulevard',         defaultPreferred: true, level: '1b' },
+      { icon: '🚲', name: 'Fahrradstrasse',              defaultPreferred: true, level: '1b' },
+      { icon: '🏘️', name: 'Living street',               defaultPreferred: true, level: '1b' },
+      { icon: '🏡', name: 'Bike boulevard',              defaultPreferred: true, level: '1b' },
     ]},
     { defaultPreferred: true, items: [
-      { icon: '〰️', name: 'Painted bike lane',      defaultPreferred: true, level: '2a' },
-      { icon: '🚌', name: 'Shared bus lane',        defaultPreferred: true, level: '2a' },
-      { icon: '🏠', name: 'Residential/local road', defaultPreferred: true, level: '2b' },
-      { icon: '🛣️', name: 'Other road',             defaultPreferred: true, level: '3'  },
+      { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
+      { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: true, level: '3' },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: true, level: '3' },
     ]},
     { defaultPreferred: false, items: [
-      { icon: '🛡️', name: 'Elevated sidewalk path', defaultPreferred: false, level: '1a' },
-      { icon: '⚠️', name: 'Rough surface',          defaultPreferred: false, level: '2b' },
+      { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: false, level: '1a' },
     ]},
   ],
 }
@@ -323,8 +322,6 @@ export const BAD_SMOOTHNESS = new Set([
   'bad', 'very_bad', 'horrible', 'very_horrible', 'impassable',
 ])
 
-export const ROUGH_ROAD_ITEM = 'Rough surface'
-
 // Maps road_class string values returned by Valhalla API to a numeric rank.
 const ROAD_CLASS_RANK: Record<string, number> = {
   motorway:     0,
@@ -362,12 +359,14 @@ const ROAD_CLASS_RANK: Record<string, number> = {
 
 /**
  * Returns the PROFILE_LEGEND item name for a Valhalla edge, or null if the
- * infrastructure is not represented in the legend (e.g. cobblestones, arterial roads).
- * The returned name can be checked directly against preferredItemNames.
+ * infrastructure is not represented in the legend (e.g. arterial roads).
+ * Benchmark-only path. Surface roughness is NOT folded into the item name —
+ * a rough bike path still classifies as "Bike path". Benchmarks that want
+ * to distinguish must read `edge.surface` separately.
  */
 export function classifyEdgeToItem(
   edge: ValhallaEdge | null | undefined,
-  profileKey: string,
+  _profileKey: string,
 ): string | null {
   if (!edge) return null
 
@@ -375,26 +374,22 @@ export function classifyEdgeToItem(
   const cycleLane   = edge.cycle_lane   ?? ''
   const roadClass   = edge.road_class   ?? ''
   const bicycleRoad = edge.bicycle_road ?? false
-  const surface     = edge.surface      ?? ''
 
-  // Bad surfaces → classified as rough road (travel-mode-aware)
-  if (surface && isBadSurface(surface, profileKey)) return ROUGH_ROAD_ITEM
-
-  // Fahrradstrasse must come before cycleway/path checks (bicycle_road tag wins)
   if (bicycleRoad) return 'Fahrradstrasse'
 
   if (use === 'cycleway' || use === 'path' || use === 'mountain_bike') return 'Bike path'
-  if (use === 'footway' || use === 'pedestrian') return 'Shared foot path'
+  if (use === 'footway' || use === 'pedestrian') return 'Shared use path'
 
   if (cycleLane === 'separated') return 'Elevated sidewalk path'
 
-  if (cycleLane === 'dedicated') return 'Painted bike lane'
+  if (cycleLane === 'dedicated') return 'Painted bike lane on quiet street'
   if (use === 'living_street')   return 'Living street'
-  if (cycleLane === 'share_busway') return 'Shared bus lane'
+  if (cycleLane === 'share_busway') return 'Shared bus lane on quiet street'
   if (cycleLane === 'shared') return null  // sharrow — not in legend
 
   const rcRank = ROAD_CLASS_RANK[roadClass] ?? 5
-  if (rcRank >= 4) return 'Residential/local road'
+  if (rcRank >= 6) return 'Quiet street'       // residential / service
+  if (rcRank >= 4) return 'Major road'         // tertiary / unclassified
 
   return null  // arterial roads (primary, secondary) not in legend
 }

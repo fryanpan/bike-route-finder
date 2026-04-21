@@ -1,8 +1,8 @@
 /**
  * BRouter routing — BENCHMARK ONLY.
  *
- * Not used by the main web app. Kept so we can compare client-side routing
- * against BRouter from src/services/routerBenchmark.ts and AuditEvalTab.
+ * Not used by the main web app. Kept so scripts/benchmark-routing.ts can
+ * compare client-side routing against BRouter.
  *
  * Calls the /api/brouter proxy (which forwards to brouter.de/brouter) and
  * parses the GeoJSON response into our Route type, including per-segment

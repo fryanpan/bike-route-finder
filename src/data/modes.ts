@@ -183,7 +183,7 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
     // filters of the old ltsConditions model are now baked into classifyEdge
     // (painted lane on >30 km/h already classifies as pathLevel 3).
     acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b']),
-    levelMultipliers: { '2b': 1.5 },
+    levelMultipliers: { '2a': 1.5, '2b': 1.5 },
     roughSurfaceMultiplier: 5.0,
     surfaceOk: PAVED,
     cobbleHandling: 'reject',
@@ -204,7 +204,7 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
     // Accepts 1a-2b outright plus LTS 3 with a 2× cost multiplier. LTS 4
     // rejected (bridge-walks if a sidewalk exists).
     acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b', '3']),
-    levelMultipliers: { '3': 2.0 },
+    levelMultipliers: { '2a': 1.2, '2b': 1.2, '3': 1.5 },
     roughSurfaceMultiplier: 5.0,
     surfaceOk: SMOOTH_ONLY,
     cobbleHandling: 'reject',

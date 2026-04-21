@@ -18,6 +18,7 @@ These files document the evidence behind each layer and provide a repeatable rec
 |---|---|
 | [`standards.md`](./standards.md) | Academic + government frameworks (LTS, NACTO AAA, CROW, ERA, LTN 1/20, Vejdirektoratet). The Layer 1 defense. |
 | [`safety-in-numbers.md`](./safety-in-numbers.md) | Jacobsen / Elvik literature on the safety-in-numbers effect and the derived mode-share multiplier. |
+| [`gender-and-infrastructure-preference.md`](./gender-and-infrastructure-preference.md) | Why infrastructure type shapes **who rides**. Preference ordering (quiet street / bike boulevard ≥ protected lane > painted lane) and the evidence that volume + speed, not presence of cars, is the comfort threshold. |
 | [`city-profiles/README.md`](./city-profiles/README.md) | Methodology and YAML template for per-city profiles. The repeatable recipe. |
 | [`city-profiles/<city>.md`](./city-profiles/) | One file per researched city with sources, parent voices, derived profile. |
 | [`synthesis.md`](./synthesis.md) | Cross-city synthesis: archetype table, routing-model requirements uncovered, recommendations. |

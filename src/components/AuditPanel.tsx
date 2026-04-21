@@ -2,18 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { CITY_PRESETS, scanCity, reclassifyGroups } from '../services/audit'
 import { saveScan, loadScan } from '../services/auditCache'
 import AuditGroupDetail from './AuditGroupDetail'
-import AuditRulesTab from './AuditRulesTab'
 import AuditSamplesTab from './AuditSamplesTab'
-import AuditLegendTab from './AuditLegendTab'
-import AuditEvalTab from './AuditEvalTab'
-import AuditFeedbackTab from './AuditFeedbackTab'
 import type { CityScan, AuditGroup } from '../services/audit'
 import { fetchRules } from '../services/rules'
 import type { RegionRules } from '../services/rules'
 
 type FilterStatus = 'all' | 'classified' | 'unclassified'
-type ActiveTab = 'samples' | 'groups' | 'rules' | 'legend' | 'eval' | 'feedback'
-const VALID_TABS: ActiveTab[] = ['samples', 'groups', 'rules', 'legend', 'eval', 'feedback']
+type ActiveTab = 'samples' | 'groups'
+const VALID_TABS: ActiveTab[] = ['samples', 'groups']
 
 function parseTabFromUrl(): ActiveTab {
   const params = new URLSearchParams(window.location.search)
@@ -33,14 +29,11 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
-  // Expansion
   const [expandedGroup, setExpandedGroup] = useState<number | null>(null)
 
-  // Filters
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [filterText, setFilterText] = useState('')
 
-  // Tabs — default to samples (the main admin view)
   const [activeTab, setActiveTabRaw] = useState<ActiveTab>(initialTab ?? parseTabFromUrl())
 
   const setActiveTab = useCallback((tab: ActiveTab) => {
@@ -50,27 +43,21 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
     window.history.replaceState({}, '', `?${params.toString()}`)
   }, [])
 
-  // Region rules (KV-backed)
   const [rules, setRulesRaw] = useState<RegionRules>({ rules: [], legendItems: [] })
 
-  // When rules change, reclassify the scan groups immediately
   const setRules = useCallback((newRules: RegionRules) => {
     setRulesRaw(newRules)
     setScan((prev) => prev ? reclassifyGroups(prev, newRules.rules) : prev)
   }, [])
 
-  // Load cached scan and rules on mount and when city changes.
-  // Reclassify scan groups once both are available.
   useEffect(() => {
     let cancelled = false
-    // TODO: add a schema version to CityScan so we can detect stale cache cleanly
     Promise.all([
       loadScan(selectedCity).catch(() => null),
       fetchRules(selectedCity.toLowerCase()).catch(() => ({ rules: [], legendItems: [] } as RegionRules)),
     ]).then(([cached, r]) => {
       if (cancelled) return
       setRulesRaw(r)
-      // Discard cached scans from old schema (missing totalDistanceKm)
       if (cached && Array.isArray(cached.groups) && cached.groups.every((g: AuditGroup) => typeof g.totalDistanceKm === 'number')) {
         setScan(r.rules.length > 0 ? reclassifyGroups(cached, r.rules) : cached)
       }
@@ -78,7 +65,6 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
     return () => { cancelled = true }
   }, [selectedCity])
 
-  // Reset scan when city changes
   const handleCityChange = useCallback((city: string) => {
     setSelectedCity(city)
     setScan(null)
@@ -105,7 +91,6 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
     }
   }
 
-  // Filter groups
   const filteredGroups: AuditGroup[] = (scan?.groups ?? []).filter((g) => {
     if (filterStatus === 'classified' && g.classification === null) return false
     if (filterStatus === 'unclassified' && g.classification !== null) return false
@@ -171,30 +156,6 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
           onClick={() => setActiveTab('groups')}
         >
           Groups
-        </button>
-        <button
-          className={`audit-tab${activeTab === 'rules' ? ' audit-tab-active' : ''}`}
-          onClick={() => setActiveTab('rules')}
-        >
-          Rules
-        </button>
-        <button
-          className={`audit-tab${activeTab === 'legend' ? ' audit-tab-active' : ''}`}
-          onClick={() => setActiveTab('legend')}
-        >
-          Legend Items
-        </button>
-        <button
-          className={`audit-tab${activeTab === 'eval' ? ' audit-tab-active' : ''}`}
-          onClick={() => setActiveTab('eval')}
-        >
-          Eval
-        </button>
-        <button
-          className={`audit-tab${activeTab === 'feedback' ? ' audit-tab-active' : ''}`}
-          onClick={() => setActiveTab('feedback')}
-        >
-          Feedback
         </button>
       </div>
 
@@ -263,32 +224,8 @@ export default function AuditPanel({ onClose, initialTab }: Props) {
         </>
       )}
 
-      {activeTab === 'rules' && (
-        <AuditRulesTab
-          rules={rules}
-          region={selectedCity.toLowerCase()}
-          onRulesChange={setRules}
-        />
-      )}
-
-      {activeTab === 'legend' && (
-        <AuditLegendTab
-          rules={rules}
-          region={selectedCity.toLowerCase()}
-          onRulesChange={setRules}
-        />
-      )}
-
       {activeTab === 'samples' && (
         <AuditSamplesTab scan={scan} regionRules={rules.rules} />
-      )}
-
-      {activeTab === 'eval' && (
-        <AuditEvalTab />
-      )}
-
-      {activeTab === 'feedback' && (
-        <AuditFeedbackTab />
       )}
     </div>
   )

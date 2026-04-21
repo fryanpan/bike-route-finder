@@ -1,5 +1,5 @@
 import type { OsmWay } from '../utils/types'
-import { BAD_SURFACES, BAD_SMOOTHNESS, ROUGH_ROAD_ITEM, isBadSurface } from '../utils/classify'
+import { BAD_SURFACES, BAD_SMOOTHNESS, isBadSurface } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
 import type { ClassificationRule } from './rules'
 import type { LatLngBounds } from 'leaflet'
@@ -162,12 +162,24 @@ function hasSeparation(tags: Record<string, string>): boolean {
   return false
 }
 
+/**
+ * Rough-surface check — orthogonal to the infrastructure type. A rough
+ * bike path is still a bike path (level 1a); the roughness is a separate
+ * signal the router penalises with a 5× multiplier and the overlay hides
+ * entirely. See docs/product/path-types-reference.md §Rough-surface override.
+ */
+export function isRoughSurface(tags: Record<string, string>, profileKey: string): boolean {
+  if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return true
+  if (tags.surface && isBadSurface(tags.surface, profileKey)) return true
+  return false
+}
+
 export function classifyOsmTagsToItem(
   tags: Record<string, string>,
   profileKey: string,
   regionRules?: ClassificationRule[],
 ): string | null {
-  // Server-side rules take priority over hardcoded logic
+  // Server-side rules take priority over hardcoded logic.
   if (regionRules) {
     for (const rule of regionRules) {
       if (Object.entries(rule.match).every(([k, v]) => tags[k] === v)) {
@@ -176,16 +188,10 @@ export function classifyOsmTagsToItem(
     }
   }
 
-  // Bad smoothness or surface → rough road (travel-mode-aware)
-  if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return ROUGH_ROAD_ITEM
-  if (tags.surface && isBadSurface(tags.surface, profileKey)) return ROUGH_ROAD_ITEM
-
   // Drive the item name from pathLevel (shared with routing) + tag specifics.
-  // This keeps display and routing in sync — a street classified as LTS 1b by
-  // classifyEdge is guaranteed to render as a 1b-tier item (Fahrradstraße /
-  // Living street / Bike boulevard), never as plain "Residential/local road".
-  // See docs/process/learnings.md ("One classifier drives both display and
-  // routing").
+  // Surface roughness is NOT part of the item name — a rough bike path still
+  // classifies as "Bike path" (1a). Callers use isRoughSurface() separately
+  // to gate overlay visibility and apply the routing penalty.
   const { pathLevel } = classifyEdge(tags)
 
   const highway     = tags.highway ?? ''
@@ -213,21 +219,22 @@ export function classifyOsmTagsToItem(
 
   switch (pathLevel) {
     case '1a':
-      if (highway === 'footway') return 'Shared foot path'
+      if (highway === 'footway' || (highway === 'path' && (tags.bicycle === 'yes' || tags.bicycle === 'designated'))) return 'Shared use path'
       if (isSeparatedTrack || isPhysicallySeparatedLane) return 'Elevated sidewalk path'
       return 'Bike path'
     case '1b':
       if (bicycleRoad) return 'Fahrradstrasse'
       if (highway === 'living_street') return 'Living street'
       if (highway === 'residential' && isLocalAccessOnly) return 'Bike boulevard'
-      return 'Fahrradstrasse' // fallback — bike-prioritized but none of the above
+      return 'Fahrradstrasse'
     case '2a':
-      if (hasBusLaneTag) return 'Shared bus lane'
-      return 'Painted bike lane'
+      if (hasBusLaneTag) return 'Shared bus lane on quiet street'
+      return 'Painted bike lane on quiet street'
     case '2b':
-      return 'Residential/local road'
+      return 'Quiet street'
     case '3':
-      return 'Other road'
+      if (hasPaintedLaneTag || hasBusLaneTag) return 'Painted bike lane on major road'
+      return 'Major road'
     case '4':
       return null // LTS 4 not shown in overlay
   }

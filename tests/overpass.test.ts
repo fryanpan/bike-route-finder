@@ -133,50 +133,43 @@ describe('classifyOsmTagsToItem', () => {
     expect(classifyOsmTagsToItem(tags, 'unknown')).toBe('Elevated sidewalk path')
   })
 
-  it('returns Painted bike lane for cycleway=lane without physical separation', () => {
-    expect(classifyOsmTagsToItem({ highway: 'residential', cycleway: 'lane' }, 'kid-starting-out')).toBe('Painted bike lane')
+  it('returns Painted bike lane on quiet street for cycleway=lane on residential', () => {
+    expect(classifyOsmTagsToItem({ highway: 'residential', cycleway: 'lane' }, 'kid-starting-out')).toBe('Painted bike lane on quiet street')
   })
 
-  it('returns rough road for bad surface', () => {
-    expect(classifyOsmTagsToItem({ highway: 'cycleway', surface: 'cobblestone' }, 'kid-starting-out')).toBe('Rough surface')
+  it('does NOT remap rough surfaces to a Rough-surface item (rough is orthogonal)', () => {
+    // Cobblestone bike path still classifies as "Bike path". Callers use
+    // isRoughSurface() separately for overlay-hide + 5× routing penalty.
+    expect(classifyOsmTagsToItem({ highway: 'cycleway', surface: 'cobblestone' }, 'kid-starting-out')).toBe('Bike path')
+    expect(classifyOsmTagsToItem({ highway: 'cycleway', smoothness: 'bad' }, 'kid-starting-out')).toBe('Bike path')
+    expect(classifyOsmTagsToItem({ highway: 'residential', smoothness: 'very_bad' }, 'kid-starting-out')).toBe('Quiet street')
   })
 
-  it('returns rough road for bad smoothness', () => {
-    expect(classifyOsmTagsToItem({ highway: 'cycleway', smoothness: 'bad' }, 'kid-starting-out')).toBe('Rough surface')
-    expect(classifyOsmTagsToItem({ highway: 'residential', smoothness: 'very_bad' }, 'kid-starting-out')).toBe('Rough surface')
+  it('returns Quiet street for plain residential', () => {
+    expect(classifyOsmTagsToItem({ highway: 'residential' }, 'kid-starting-out')).toBe('Quiet street')
   })
 
-  it('returns Residential road for plain residential', () => {
-    expect(classifyOsmTagsToItem({ highway: 'residential' }, 'kid-starting-out')).toBe('Residential/local road')
-  })
-
-  it('returns Shared footway for footway with bicycle=yes', () => {
-    // Plain footway without a bicycle tag means bikes NOT allowed in OSM —
-    // shouldn't render as shared. Only footways explicitly marked for cyclists
-    // count as 1a infra.
-    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'yes' }, 'kid-starting-out')).toBe('Shared foot path')
-    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'designated' }, 'kid-starting-out')).toBe('Shared foot path')
+  it('returns Shared use path for footway with bicycle=yes', () => {
+    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'yes' }, 'kid-starting-out')).toBe('Shared use path')
+    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'designated' }, 'kid-starting-out')).toBe('Shared use path')
   })
 
   it('returns Bike boulevard for residential with motor_vehicle=destination', () => {
-    // SF Slow Streets, Berkeley Bicycle Boulevards, Portland Neighborhood
-    // Greenways, UK Low Traffic Neighbourhoods all use this tag pattern.
     expect(classifyOsmTagsToItem({ highway: 'residential', motor_vehicle: 'destination' }, 'kid-confident')).toBe('Bike boulevard')
     expect(classifyOsmTagsToItem({ highway: 'residential', motor_vehicle: 'permissive' }, 'kid-confident')).toBe('Bike boulevard')
   })
 
-  it('returns Other road for busy residentials', () => {
+  it('returns Major road for busy residentials', () => {
     // residential + maxspeed 50 + 4 lanes → LTS 3 per classifyEdge
-    expect(classifyOsmTagsToItem({ highway: 'residential', maxspeed: '50', lanes: '4' }, 'carrying-kid')).toBe('Other road')
+    expect(classifyOsmTagsToItem({ highway: 'residential', maxspeed: '50', lanes: '4' }, 'carrying-kid')).toBe('Major road')
   })
 
-  it('returns Other road for painted lane on faster streets', () => {
-    // Painted lane on maxspeed > 30 demotes to LTS 3 (our kid-first tightening)
-    expect(classifyOsmTagsToItem({ highway: 'tertiary', cycleway: 'lane', maxspeed: '50' }, 'kid-traffic-savvy')).toBe('Other road')
+  it('returns Painted bike lane on major road for painted lane on faster streets', () => {
+    expect(classifyOsmTagsToItem({ highway: 'tertiary', cycleway: 'lane', maxspeed: '50' }, 'kid-traffic-savvy')).toBe('Painted bike lane on major road')
   })
 
-  it('returns Painted bike lane for painted lane on quiet street', () => {
-    expect(classifyOsmTagsToItem({ highway: 'residential', cycleway: 'lane', maxspeed: '30' }, 'kid-traffic-savvy')).toBe('Painted bike lane')
+  it('returns Painted bike lane on quiet street for painted lane at ≤30 km/h', () => {
+    expect(classifyOsmTagsToItem({ highway: 'residential', cycleway: 'lane', maxspeed: '30' }, 'kid-traffic-savvy')).toBe('Painted bike lane on quiet street')
   })
 })
 
@@ -202,7 +195,7 @@ describe('classifyOsmTagsToItem with rules', () => {
   it('rule with multiple match keys requires all to match', () => {
     const rules = [{ match: { highway: 'residential', surface: 'asphalt' }, classification: 'Smooth residential', travelModes: {} }]
     // Only one key matches — should fall through
-    expect(classifyOsmTagsToItem({ highway: 'residential' }, 'kid-starting-out', rules)).toBe('Residential/local road')
+    expect(classifyOsmTagsToItem({ highway: 'residential' }, 'kid-starting-out', rules)).toBe('Quiet street')
     // Both keys match — rule applies
     expect(classifyOsmTagsToItem({ highway: 'residential', surface: 'asphalt' }, 'kid-starting-out', rules)).toBe('Smooth residential')
   })

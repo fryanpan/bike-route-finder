@@ -14,6 +14,16 @@ export default defineConfig({
       telemetry: false,
     }),
   ],
+  // Vite HMR serves the app; /api/* is proxied to the local wrangler dev
+  // on :8791 so Worker routes (feedback, mapillary, overpass) still work.
+  // Run both: `bunx wrangler dev --port 8791` + `bunx vite`.
+  server: {
+    host: true, // listen on 0.0.0.0 so Tailscale / LAN hosts can reach it
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:8791',
+    },
+  },
   build: {
     sourcemap: true,
     outDir: 'dist',

@@ -23,52 +23,56 @@ describe('classifyEdgeToItem — Fahrradstrasse', () => {
 
 // ── Car-free paths and cycleways ──────────────────────────────────────────────
 
-describe('classifyEdgeToItem — car-free paths (use="cycleway", "path", "mountain_bike")', () => {
+describe('classifyEdgeToItem — car-free paths', () => {
   it('classifies use=cycleway as Bike path', () => {
     const edge: ValhallaEdge = { use: 'cycleway' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Bike path')
     expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Bike path')
   })
 
-  it('classifies use=path (trail e.g. Engeldam) as Bike path', () => {
+  it('classifies use=path as Bike path', () => {
     const edge: ValhallaEdge = { use: 'path' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Bike path')
     expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Bike path')
   })
 
-  it('classifies use=mountain_bike path as Bike path', () => {
+  it('classifies use=mountain_bike as Bike path', () => {
     const edge: ValhallaEdge = { use: 'mountain_bike' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Bike path')
   })
 
-  it('classifies dirt path as Rough road — dirt is a bad surface for all modes', () => {
+  it('returns the underlying infra type regardless of surface (rough is orthogonal)', () => {
+    // Surface roughness is carried by a separate flag (isRoughSurface) for
+    // the overlay-hide + 5× routing penalty. The item name stays true to
+    // the infrastructure type so the distribution plot and legend tier
+    // coloring remain consistent.
     const edge: ValhallaEdge = { use: 'path', surface: 'dirt' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Rough surface')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Rough surface')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Bike path')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Bike path')
   })
 })
 
-// ── Shared footway / pedestrian paths (park paths, Tiergarten trails) ────────
+// ── Shared use paths (footway / pedestrian) ──────────────────────────────────
 
-describe('classifyEdgeToItem — shared footway/pedestrian paths', () => {
-  it('classifies use=footway as Shared foot path for all profiles', () => {
+describe('classifyEdgeToItem — shared use paths', () => {
+  it('classifies use=footway as Shared use path for all profiles', () => {
     const edge: ValhallaEdge = { use: 'footway' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared foot path')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Shared foot path')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared foot path')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared use path')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Shared use path')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared use path')
   })
 
-  it('classifies use=pedestrian as Shared foot path for all profiles', () => {
+  it('classifies use=pedestrian as Shared use path for all profiles', () => {
     const edge: ValhallaEdge = { use: 'pedestrian' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared foot path')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared foot path')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared use path')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared use path')
   })
 })
 
-// ── Elevated sidewalk path alongside road (cycleway=track) ─────────────────────
+// ── Elevated sidewalk path alongside road (cycle_lane=separated) ─────────────
 
-describe('classifyEdgeToItem — separated track (cycle_lane="separated")', () => {
-  it('classifies separated track as profile-specific item name', () => {
+describe('classifyEdgeToItem — separated track', () => {
+  it('classifies separated track as Elevated sidewalk path', () => {
     const edge: ValhallaEdge = { cycle_lane: 'separated' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Elevated sidewalk path')
     expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Elevated sidewalk path')
@@ -76,21 +80,21 @@ describe('classifyEdgeToItem — separated track (cycle_lane="separated")', () =
   })
 })
 
-// ── Painted road bike lane (cycleway=lane) ────────────────────────────────────
+// ── Painted bike lane on quiet street (cycle_lane=dedicated) ─────────────────
 
-describe('classifyEdgeToItem — painted road lane (cycle_lane="dedicated")', () => {
-  it('classifies painted lane as Painted bike lane for all profiles', () => {
+describe('classifyEdgeToItem — painted road lane', () => {
+  it('classifies painted lane as Painted bike lane on quiet street', () => {
     const edge: ValhallaEdge = { cycle_lane: 'dedicated' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Painted bike lane')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Painted bike lane')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Painted bike lane')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Painted bike lane on quiet street')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Painted bike lane on quiet street')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Painted bike lane on quiet street')
   })
 })
 
 // ── Living street ─────────────────────────────────────────────────────────────
 
-describe('classifyEdgeToItem — living street (use="living_street")', () => {
-  it('classifies living street as Living street for all profiles', () => {
+describe('classifyEdgeToItem — living street', () => {
+  it('classifies living_street as Living street for all profiles', () => {
     const edge: ValhallaEdge = { use: 'living_street' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Living street')
     expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Living street')
@@ -98,81 +102,64 @@ describe('classifyEdgeToItem — living street (use="living_street")', () => {
   })
 })
 
-// ── Shared bus lane (cycleway=share_busway) ───────────────────────────────────
+// ── Shared bus lane ──────────────────────────────────────────────────────────
 
-describe('classifyEdgeToItem — shared bus lane (cycle_lane="share_busway")', () => {
-  it('classifies bus lane as Shared bus lane for all profiles', () => {
+describe('classifyEdgeToItem — shared bus lane', () => {
+  it('classifies bus lane as Shared bus lane on quiet street', () => {
     const edge: ValhallaEdge = { cycle_lane: 'share_busway' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared bus lane')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared bus lane')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Shared bus lane')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Shared bus lane on quiet street')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Shared bus lane on quiet street')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Shared bus lane on quiet street')
   })
 })
 
-// ── Residential road ──────────────────────────────────────────────────────────
+// ── Residential road ─────────────────────────────────────────────────────────
 
 describe('classifyEdgeToItem — residential road', () => {
-  it('classifies residential road_class as Residential road', () => {
+  it('classifies residential road_class as Quiet street', () => {
     const edge: ValhallaEdge = { road_class: 'residential' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Residential/local road')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Residential/local road')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Residential/local road')
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Quiet street')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Quiet street')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Quiet street')
   })
 })
 
-// ── Bad surfaces (cobblestones) → 'Rough surface' ────────────
+// ── Surface roughness is carried separately ──────────────────────────────────
 
-describe('classifyEdgeToItem — bad surfaces return rough road', () => {
-  const ROUGH = 'Rough surface'
-
-  it('returns rough road for cobblestone surface regardless of infra type', () => {
+describe('classifyEdgeToItem — surface does NOT change the item name', () => {
+  it('cobblestone bike path still classifies as Bike path (rough flag is orthogonal)', () => {
     const edge: ValhallaEdge = { cycle_lane: 'separated', surface: 'cobblestone' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe(ROUGH)
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe(ROUGH)
-    expect(classifyEdgeToItem(edge, 'training')).toBe(ROUGH)
+    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Elevated sidewalk path')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Elevated sidewalk path')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Elevated sidewalk path')
   })
 
-  it('returns rough road for sett (Kopfsteinpflaster)', () => {
-    const edge: ValhallaEdge = { use: 'cycleway', surface: 'sett' }
-    expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe(ROUGH)
-    expect(classifyEdgeToItem(edge, 'training')).toBe(ROUGH)
-  })
-
-  it('treats dirt as rough road but compacted as OK for all modes', () => {
-    const dirt: ValhallaEdge = { cycle_lane: 'separated', surface: 'dirt' }
-    const compacted: ValhallaEdge = { cycle_lane: 'separated', surface: 'compacted' }
-    expect(classifyEdgeToItem(dirt, 'kid-starting-out')).toBe('Rough surface')
-    expect(classifyEdgeToItem(compacted, 'kid-starting-out')).toBe('Elevated sidewalk path')
-    expect(classifyEdgeToItem(compacted, 'carrying-kid')).toBe('Elevated sidewalk path')
-    expect(classifyEdgeToItem(compacted, 'training')).toBe('Elevated sidewalk path')
-  })
-
-  it('paving_stones is OK for toddler but rough for trailer/training', () => {
+  it('paving_stones cycleway stays Bike path for every mode', () => {
     const edge: ValhallaEdge = { use: 'cycleway', surface: 'paving_stones' }
     expect(classifyEdgeToItem(edge, 'kid-starting-out')).toBe('Bike path')
-    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Rough surface')
-    expect(classifyEdgeToItem(edge, 'training')).toBe('Rough surface')
+    expect(classifyEdgeToItem(edge, 'carrying-kid')).toBe('Bike path')
+    expect(classifyEdgeToItem(edge, 'training')).toBe('Bike path')
   })
 
-  it('returns rough road for gravel and unpaved', () => {
+  it('gravel and unpaved still classify as their underlying infra type', () => {
     const gravel: ValhallaEdge = { cycle_lane: 'separated', surface: 'gravel' }
     const unpaved: ValhallaEdge = { cycle_lane: 'separated', surface: 'unpaved' }
-    expect(classifyEdgeToItem(gravel, 'kid-starting-out')).toBe(ROUGH)
-    expect(classifyEdgeToItem(unpaved, 'kid-starting-out')).toBe(ROUGH)
+    expect(classifyEdgeToItem(gravel, 'kid-starting-out')).toBe('Elevated sidewalk path')
+    expect(classifyEdgeToItem(unpaved, 'kid-starting-out')).toBe('Elevated sidewalk path')
   })
 })
 
-// ── Arterial roads → null ─────────────────────────────────────────────────────
+// ── Arterial roads → null; tertiary/unclassified → Major road ────────────────
 
-describe('classifyEdgeToItem — arterial roads return null', () => {
+describe('classifyEdgeToItem — arterial roads', () => {
   it('returns null for primary and secondary roads', () => {
     expect(classifyEdgeToItem({ road_class: 'primary' }, 'kid-starting-out')).toBeNull()
     expect(classifyEdgeToItem({ road_class: 'secondary' }, 'kid-starting-out')).toBeNull()
   })
 
-  it('returns Residential/local road for tertiary and unclassified', () => {
-    expect(classifyEdgeToItem({ road_class: 'tertiary' }, 'kid-starting-out')).toBe('Residential/local road')
-    expect(classifyEdgeToItem({ road_class: 'unclassified' }, 'kid-starting-out')).toBe('Residential/local road')
+  it('returns Major road for tertiary and unclassified', () => {
+    expect(classifyEdgeToItem({ road_class: 'tertiary' }, 'kid-starting-out')).toBe('Major road')
+    expect(classifyEdgeToItem({ road_class: 'unclassified' }, 'kid-starting-out')).toBe('Major road')
   })
 
   it('returns null for null/undefined edge', () => {
@@ -181,52 +168,56 @@ describe('classifyEdgeToItem — arterial roads return null', () => {
   })
 })
 
-// ── getDefaultPreferredItems ──────────────────────────────────────────────────
+// ── getDefaultPreferredItems ─────────────────────────────────────────────────
 
 describe('getDefaultPreferredItems', () => {
   it('returns physically car-separated infra for kid-starting-out', () => {
     const items = getDefaultPreferredItems('kid-starting-out')
     expect(items.has('Bike path')).toBe(true)
-    expect(items.has('Shared foot path')).toBe(true)
+    expect(items.has('Shared use path')).toBe(true)
     expect(items.has('Elevated sidewalk path')).toBe(true)
-    // Fahrradstraßen, living streets, painted lanes, residential are NOT
-    // preferred — kid is just starting out and cars are still present on
-    // bike-priority streets.
     expect(items.has('Fahrradstrasse')).toBe(false)
     expect(items.has('Living street')).toBe(false)
-    expect(items.has('Painted bike lane')).toBe(false)
-    expect(items.has('Residential/local road')).toBe(false)
+    expect(items.has('Painted bike lane on quiet street')).toBe(false)
+    expect(items.has('Quiet street')).toBe(false)
   })
 
-  it('adds living streets and elevated tracks for kid-confident', () => {
+  it('adds living streets and Fahrradstrassen for kid-confident', () => {
     const items = getDefaultPreferredItems('kid-confident')
     expect(items.has('Bike path')).toBe(true)
     expect(items.has('Fahrradstrasse')).toBe(true)
     expect(items.has('Elevated sidewalk path')).toBe(true)
     expect(items.has('Living street')).toBe(true)
-    // Painted lanes still not trusted at this level.
-    expect(items.has('Painted bike lane')).toBe(false)
-    expect(items.has('Residential/local road')).toBe(false)
+    expect(items.has('Painted bike lane on quiet street')).toBe(false)
+    expect(items.has('Quiet street')).toBe(false)
   })
 
-  it('adds painted lanes for kid-traffic-savvy but NOT plain residential', () => {
-    // Under the LTS 1a–2a acceptance model: painted lanes on quiet streets
-    // (2a) are preferred, but plain residentials without bike infra (2b) are
-    // accepted with a 1.5× multiplier — not in the preferred set.
+  it('adds painted lanes AND quiet residentials for kid-traffic-savvy', () => {
     const items = getDefaultPreferredItems('kid-traffic-savvy')
-    expect(items.has('Painted bike lane')).toBe(true)
-    expect(items.has('Shared bus lane')).toBe(true)
+    expect(items.has('Painted bike lane on quiet street')).toBe(true)
+    expect(items.has('Shared bus lane on quiet street')).toBe(true)
     expect(items.has('Bike boulevard')).toBe(true)
     expect(items.has('Living street')).toBe(true)
-    expect(items.has('Residential/local road')).toBe(false)
-    expect(items.has('Other road')).toBe(false)
+    expect(items.has('Quiet street')).toBe(true) // 2b preferred per Apr 2026 spec
+    expect(items.has('Major road')).toBe(false)
+  })
+
+  it('adds Major road for carrying-kid (LTS 3 preferred with 1.5× cost)', () => {
+    const items = getDefaultPreferredItems('carrying-kid')
+    expect(items.has('Bike path')).toBe(true)
+    expect(items.has('Painted bike lane on quiet street')).toBe(true)
+    expect(items.has('Quiet street')).toBe(true)
+    expect(items.has('Painted bike lane on major road')).toBe(true)
+    expect(items.has('Major road')).toBe(true)
+    expect(items.has('Elevated sidewalk path')).toBe(false) // opted out for carrying-kid
   })
 
   it('returns defaultPreferred items for training profile', () => {
     const items = getDefaultPreferredItems('training')
     expect(items.has('Bike path')).toBe(true)
-    expect(items.has('Painted bike lane')).toBe(true)
+    expect(items.has('Painted bike lane on quiet street')).toBe(true)
     expect(items.has('Living street')).toBe(true)
+    expect(items.has('Major road')).toBe(true)
     expect(items.has('Elevated sidewalk path')).toBe(false)
   })
 
@@ -235,7 +226,7 @@ describe('getDefaultPreferredItems', () => {
   })
 })
 
-// ── computeRouteQuality ───────────────────────────────────────────────────────
+// ── computeRouteQuality ──────────────────────────────────────────────────────
 
 describe('computeRouteQuality — preferred/other/walking model', () => {
   const seg = (itemName: string | null, len: number, isWalking?: boolean): RouteSegment => ({
@@ -247,7 +238,7 @@ describe('computeRouteQuality — preferred/other/walking model', () => {
   it('splits preferred vs other by item name', () => {
     const segments: RouteSegment[] = [
       seg('Bike path', 3),
-      seg('Painted bike lane', 1),
+      seg('Painted bike lane on quiet street', 1),
       seg(null, 1),
     ]
     const preferred = new Set(['Bike path'])
@@ -287,7 +278,7 @@ describe('computeRouteQuality — preferred/other/walking model', () => {
   it('counts walking segments separately from preferred and other', () => {
     const segments: RouteSegment[] = [
       seg('Bike path', 3),
-      seg(null, 1, true),  // walking segment
+      seg(null, 1, true),
       seg(null, 1),
     ]
     const preferred = new Set(['Bike path'])
@@ -297,4 +288,3 @@ describe('computeRouteQuality — preferred/other/walking model', () => {
     expect(q.other).toBeCloseTo(1 / 5)
   })
 })
-

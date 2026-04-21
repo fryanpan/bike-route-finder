@@ -146,3 +146,7 @@ export interface OsmWay {
   osmId: number
   tags: Record<string, string>
 }
+// Note: roughness is NOT a cached field on OsmWay because it's profile-
+// dependent (paving_stones is fine for slow kid modes but rough for
+// higher-speed modes). Callers use `isRoughSurface(tags, profileKey)`
+// in overpass.ts to compute it at render/routing time.

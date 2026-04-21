@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem } from '../services/overpass'
-import { PREFERRED_COLOR, OTHER_COLOR } from '../utils/classify'
+import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem, isRoughSurface } from '../services/overpass'
+import { PREFERRED_COLOR, OTHER_COLOR, PROFILE_LEGEND } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
-import { dashArrayForLevel, colorForLevel } from './SimpleLegend'
+import type { PathLevel } from '../utils/lts'
+import { dashArrayForLevel, colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
 import { getStreetImage } from '../services/mapillary'
 import type { ClassificationRule } from '../services/rules'
 import type { OsmWay } from '../utils/types'
@@ -102,24 +103,44 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
     lg.clearLayers()
 
     // Reduce overlay line weight when a route is shown so the route stands out.
-    // Minimum 5 even with route — thinner lines are untappable on mobile.
-    const overlayWeight = hasRoute ? 5 : 7
+    // Minimum 3 even with route — thinner lines are untappable on mobile.
+    const overlayWeight = hasRoute ? 3 : 4
+
+    // Build the set of path levels that are preferred for the current mode.
+    // The overlay renders only these levels (plus non-preferred if
+    // showOtherPaths). This is what drives the mode-to-mode visual
+    // difference: kid-starting-out shows only 1a, kid-confident adds 1b,
+    // traffic-savvy adds 2a, carrying-kid adds 2b, training adds 3.
+    const preferredLevels = new Set<PathLevel>()
+    for (const group of PROFILE_LEGEND[profileKey] ?? []) {
+      if (!group.defaultPreferred) continue
+      for (const item of group.items) preferredLevels.add(item.level)
+    }
 
     for (const way of ways) {
-      const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
-      if (!showOtherPaths && (itemName === null || !preferredItemNames.has(itemName))) continue
-      const isPreferred = itemName !== null && preferredItemNames.has(itemName)
-      // Tier-specific color so Car-free, Bike boulevards, and Painted lanes
-      // each get a distinct green on the map — matching the legend swatches
-      // and the route-summary distribution plot. Non-preferred tiers stay
-      // orange.
+      // pathLevel is structural (from classifyEdge) and stable across modes.
       const { pathLevel } = classifyEdge(way.tags)
-      const color = isPreferred ? colorForLevel(pathLevel) : OTHER_COLOR
+      if (pathLevel === '4') continue // non-rideable
+
+      // Rough-surface ways are hidden from the overlay but stay in the
+      // routing graph (router applies 5× penalty). This keeps the discovery
+      // view focused on paths you'd actually enjoy riding.
+      if (isRoughSurface(way.tags, profileKey)) continue
+
+      const isLevelPreferred = preferredLevels.has(pathLevel)
+      if (!isLevelPreferred && !showOtherPaths) continue
+
+      const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
+      const isPreferred = itemName !== null && preferredItemNames.has(itemName)
+
+      // Color: tier green if the level is preferred, orange if shown as "other."
+      const color = isLevelPreferred ? colorForLevel(pathLevel) : OTHER_COLOR
       const dashArray = dashArrayForLevel(pathLevel)
+      const weight = Math.max(2, Math.round(overlayWeight * weightMultiplierForLevel(pathLevel)))
 
       const polyline = L.polyline(way.coordinates, {
         color,
-        weight: overlayWeight,
+        weight,
         opacity: 0.7,
         dashArray,
         renderer: canvasRenderer,

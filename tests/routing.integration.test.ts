@@ -253,16 +253,15 @@ describe('routing integration — Dresdener Str 112 → Le Brot (training mode)'
     expect(quality.preferred).toBeGreaterThan(0.6)
   })
 
-  it('bus lanes classify as Shared bus lane (preferred for training, not for toddler by default)', () => {
+  it('bus lanes classify as Shared bus lane on quiet street', () => {
     const buslane = { cycle_lane: 'share_busway' }
-    expect(classifyEdgeToItem(buslane, 'training')).toBe('Shared bus lane')
-    expect(classifyEdgeToItem(buslane, 'carrying-kid')).toBe('Shared bus lane')
-    expect(classifyEdgeToItem(buslane, 'kid-starting-out')).toBe('Shared bus lane')
-    // Whether it's "preferred" depends on the user's preferredItemNames, not the classification
+    expect(classifyEdgeToItem(buslane, 'training')).toBe('Shared bus lane on quiet street')
+    expect(classifyEdgeToItem(buslane, 'carrying-kid')).toBe('Shared bus lane on quiet street')
+    expect(classifyEdgeToItem(buslane, 'kid-starting-out')).toBe('Shared bus lane on quiet street')
     const toddlerPreferred = new Set(['Bike path', 'Fahrradstrasse'])
-    const trainingPreferred = new Set(['Shared bus lane'])
-    expect(toddlerPreferred.has('Shared bus lane')).toBe(false)
-    expect(trainingPreferred.has('Shared bus lane')).toBe(true)
+    const trainingPreferred = new Set(['Shared bus lane on quiet street'])
+    expect(toddlerPreferred.has('Shared bus lane on quiet street')).toBe(false)
+    expect(trainingPreferred.has('Shared bus lane on quiet street')).toBe(true)
   })
 })
 
@@ -316,24 +315,24 @@ describe('classifyEdgeToItem — uses Valhalla string API values (not legacy num
     expect(classifyEdgeToItem({ use: 'path' }, 'kid-starting-out')).toBe('Bike path')
   })
 
-  it('park footway ("use"="footway") → Shared foot path', () => {
-    expect(classifyEdgeToItem({ use: 'footway' }, 'kid-starting-out')).toBe('Shared foot path')
+  it('park footway ("use"="footway") → Shared use path', () => {
+    expect(classifyEdgeToItem({ use: 'footway' }, 'kid-starting-out')).toBe('Shared use path')
   })
 
   it('separated bike track ("cycle_lane"="separated") → Elevated sidewalk path for toddler', () => {
     expect(classifyEdgeToItem({ cycle_lane: 'separated' }, 'kid-starting-out')).toBe('Elevated sidewalk path')
   })
 
-  it('painted lane ("cycle_lane"="dedicated") → Painted bike lane', () => {
-    expect(classifyEdgeToItem({ cycle_lane: 'dedicated' }, 'kid-starting-out')).toBe('Painted bike lane')
+  it('painted lane ("cycle_lane"="dedicated") → Painted bike lane on quiet street', () => {
+    expect(classifyEdgeToItem({ cycle_lane: 'dedicated' }, 'kid-starting-out')).toBe('Painted bike lane on quiet street')
   })
 
-  it('bus lane ("cycle_lane"="share_busway") → Shared bus lane', () => {
-    expect(classifyEdgeToItem({ cycle_lane: 'share_busway' }, 'training')).toBe('Shared bus lane')
+  it('bus lane ("cycle_lane"="share_busway") → Shared bus lane on quiet street', () => {
+    expect(classifyEdgeToItem({ cycle_lane: 'share_busway' }, 'training')).toBe('Shared bus lane on quiet street')
   })
 
-  it('residential road ("road_class"="residential") → Residential/local road', () => {
-    expect(classifyEdgeToItem({ road_class: 'residential' }, 'kid-starting-out')).toBe('Residential/local road')
+  it('residential road ("road_class"="residential") → Quiet street', () => {
+    expect(classifyEdgeToItem({ road_class: 'residential' }, 'kid-starting-out')).toBe('Quiet street')
   })
 
   it('secondary road ("road_class"="secondary") → null (arterial, not in legend)', () => {
