@@ -209,11 +209,17 @@ describe('getDefaultPreferredItems', () => {
     expect(items.has('Residential/local road')).toBe(false)
   })
 
-  it('adds painted lanes and residential for kid-traffic-savvy', () => {
+  it('adds painted lanes for kid-traffic-savvy but NOT plain residential', () => {
+    // Under the LTS 1a–2a acceptance model: painted lanes on quiet streets
+    // (2a) are preferred, but plain residentials without bike infra (2b) are
+    // accepted with a 1.5× multiplier — not in the preferred set.
     const items = getDefaultPreferredItems('kid-traffic-savvy')
     expect(items.has('Painted bike lane')).toBe(true)
-    expect(items.has('Residential/local road')).toBe(true)
+    expect(items.has('Shared bus lane')).toBe(true)
+    expect(items.has('Bike boulevard')).toBe(true)
     expect(items.has('Living street')).toBe(true)
+    expect(items.has('Residential/local road')).toBe(false)
+    expect(items.has('Other road')).toBe(false)
   })
 
   it('returns defaultPreferred items for training profile', () => {

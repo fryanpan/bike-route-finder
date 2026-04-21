@@ -12,6 +12,8 @@
 import { buildRoutingGraph, routeOnGraph, haversineM } from '../src/services/clientRouter'
 import { classifyOsmTagsToItem, buildQuery } from '../src/services/overpass'
 import { getDefaultPreferredItems } from '../src/utils/classify'
+import { classifyEdge } from '../src/utils/lts'
+import type { PathLevel } from '../src/utils/lts'
 import type { OsmWay } from '../src/utils/types'
 
 // ── Config ──────────────────────────────────────────────────────────────
@@ -162,13 +164,20 @@ async function fetchTilesForCity(cityName: string, bbox: CityBbox): Promise<OsmW
 
 // ── Score external routes using Overpass data ────────────────────────────
 
+type LevelBreakdown = Record<PathLevel, number>
+
+function emptyBreakdown(): LevelBreakdown {
+  return { '1a': 0, '1b': 0, '2a': 0, '2b': 0, '3': 0, '4': 0 }
+}
+
 function scoreRouteCoords(
   coords: [number, number][],
   allWays: OsmWay[],
   profileKey: string,
   preferred: Set<string>,
-): { preferredPct: number } {
+): { preferredPct: number; levelPct: LevelBreakdown } {
   let totalDist = 0, preferredDist = 0
+  const levelDist: LevelBreakdown = emptyBreakdown()
 
   for (let i = 1; i < coords.length; i++) {
     const d = haversineM(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1])
@@ -184,10 +193,19 @@ function scoreRouteCoords(
     if (nearestWay) {
       const item = classifyOsmTagsToItem(nearestWay.tags, profileKey)
       if (item && preferred.has(item)) preferredDist += d
+      const { pathLevel } = classifyEdge(nearestWay.tags)
+      levelDist[pathLevel] += d
     }
   }
 
-  return { preferredPct: totalDist > 0 ? preferredDist / totalDist : 0 }
+  const levelPct = emptyBreakdown()
+  if (totalDist > 0) {
+    for (const k of Object.keys(levelDist) as PathLevel[]) {
+      levelPct[k] = levelDist[k] / totalDist
+    }
+  }
+
+  return { preferredPct: totalDist > 0 ? preferredDist / totalDist : 0, levelPct }
 }
 
 // ── Valhalla routing ─────────────────────────────────────────────────────
@@ -323,40 +341,40 @@ const BERLIN: CityConfig = {
   ],
 }
 
-// San Francisco — 10 destinations + 2 origins (Mission + Richmond).
-// Picked to exercise a variety of infra types: Panhandle + Wiggle
-// (cycleway-heavy), Market St (LTS-2 painted lane), Great Highway
-// (car-free by default as of 2024), Mission St (busy arterial),
-// Ocean Beach trail (mostly car-free), 3rd Street (medium-LTS),
-// JFK Promenade (car-free in Golden Gate Park). Extra routes include
-// a known tough route (Inner Sunset → Presidio) that crosses several
-// mode boundaries.
+// San Francisco — Bryan's curated 17 destinations, single origin at 120 Hancock St.
+// Covers daily-life destinations (coffee, groceries, transit, medical, park)
+// across the city, chosen to exercise SF's infra variety: Panhandle + Wiggle
+// (cycleway-heavy), Market + Valencia (painted-lane arterials), Great Highway
+// + JFK Promenade (car-free), hill climbs to Richmond/Sunset, Chinatown
+// one-ways. All destinations resolved via Nominatim on 2026-04-21; see
+// docs/product/plans/2026-04-21-path-categories-plan.md for context.
 const SF: CityConfig = {
   key: 'sf',
   displayName: 'San Francisco',
   bbox: { south: 37.70, west: -122.52, north: 37.82, east: -122.38 },
   origins: [
-    { lat: 37.7598, lng: -122.4148, label: 'Home (Mission / Valencia)' },
-    { lat: 37.7815, lng: -122.4644, label: 'School (Richmond / Geary)' },
+    { lat: 37.7605, lng: -122.4311, label: 'Home (120 Hancock St, Castro)' },
   ],
   destinations: [
-    { lat: 37.7694, lng: -122.4862, label: 'Golden Gate Park JFK Promenade' },
-    { lat: 37.7750, lng: -122.4186, label: 'Civic Center Plaza' },
-    { lat: 37.7958, lng: -122.3939, label: 'Ferry Building' },
-    { lat: 37.7608, lng: -122.4267, label: 'Mission Dolores Park' },
-    { lat: 37.7707, lng: -122.4434, label: 'Panhandle (Fell + Masonic)' },
-    { lat: 37.7690, lng: -122.5108, label: 'Ocean Beach (Judah)' },
-    { lat: 37.7765, lng: -122.3937, label: 'SF Museum of Modern Art' },
-    { lat: 37.7988, lng: -122.4375, label: 'Lombard + Van Ness' },
-    { lat: 37.7852, lng: -122.4120, label: 'Chinatown (Grant + Clay)' },
-    { lat: 37.7338, lng: -122.4195, label: 'Bernal Heights Park' },
+    { lat: 37.7955, lng: -122.3935, label: 'Ferry Building' },
+    { lat: 37.7838, lng: -122.5068, label: 'Lands End' },
+    { lat: 37.7696, lng: -122.4541, label: 'JFK Promenade east end (Stanyan)' },
+    { lat: 37.7507, lng: -122.5085, label: 'Sunset Dunes (Ocean Beach)' },
+    { lat: 37.7261, lng: -122.4434, label: 'Balboa Pool' },
+    { lat: 37.7619, lng: -122.4219, label: 'Dumpling Story (694 Valencia)' },
+    { lat: 37.7615, lng: -122.4239, label: 'Tartine (600 Guerrero)' },
+    { lat: 37.7573, lng: -122.3924, label: '22nd St Caltrain' },
+    { lat: 37.7769, lng: -122.3951, label: '4th + King Caltrain' },
+    { lat: 37.7651, lng: -122.4197, label: '16th St Mission BART' },
+    { lat: 37.7475, lng: -122.4216, label: 'CPMC Mission Bernal (Cesar Chavez + Valencia)' },
+    { lat: 37.7631, lng: -122.4574, label: 'UCSF Parnassus (505 Parnassus)' },
+    { lat: 37.7896, lng: -122.4079, label: '450 Sutter Medical Building' },
+    { lat: 37.7887, lng: -122.4072, label: 'Apple Store Union Square' },
+    { lat: 37.7960, lng: -122.4054, label: "Yummy's (607 Jackson, Chinatown)" },
+    { lat: 37.7822, lng: -122.4789, label: 'Lung Fung Bakery (1823 Clement)' },
+    { lat: 37.7805, lng: -122.4806, label: 'Dragon Beaux (5700 Geary)' },
   ],
-  extraRoutes: [
-    { origin: { lat: 37.7636, lng: -122.4666, label: 'Inner Sunset (9th + Judah)' },
-      dest:   { lat: 37.8002, lng: -122.4663, label: 'Presidio Main Post' } },
-    { origin: { lat: 37.7597, lng: -122.4148, label: 'Mission' },
-      dest:   { lat: 37.8087, lng: -122.4098, label: 'Fisherman\'s Wharf' } },
-  ],
+  extraRoutes: [],
 }
 
 const CITIES: Record<string, CityConfig> = { berlin: BERLIN, sf: SF }
@@ -387,7 +405,16 @@ async function main() {
   for (const p of city.extraRoutes) pairs.push(p)
 
   // Per-mode client routing: build a graph per mode and route every pair.
-  interface ModeRow { mode: ModeKey; pair: string; found: boolean; distanceKm: number; durationMin: number; preferredPct: number; walkingPct: number }
+  interface ModeRow {
+    mode: ModeKey
+    pair: string
+    found: boolean
+    distanceKm: number
+    durationMin: number
+    preferredPct: number
+    walkingPct: number
+    levelPct: LevelBreakdown
+  }
   const modeRows: ModeRow[] = []
   const modeGraphStats: Record<string, { nodes: number; edges: number; buildMs: number }> = {}
 
@@ -406,15 +433,17 @@ async function main() {
       const pairLabel = `${origin.label} -> ${dest.label}`
       if (result) {
         found++
+        const scored = scoreRouteCoords(result.coordinates, allWays, mode, preferred)
         modeRows.push({
           mode, pair: pairLabel, found: true,
           distanceKm: result.distanceKm,
           durationMin: result.durationS / 60,
-          preferredPct: scoreRouteCoords(result.coordinates, allWays, mode, preferred).preferredPct,
+          preferredPct: scored.preferredPct,
           walkingPct: result.walkingPct,
+          levelPct: scored.levelPct,
         })
       } else {
-        modeRows.push({ mode, pair: pairLabel, found: false, distanceKm: 0, durationMin: 0, preferredPct: 0, walkingPct: 0 })
+        modeRows.push({ mode, pair: pairLabel, found: false, distanceKm: 0, durationMin: 0, preferredPct: 0, walkingPct: 0, levelPct: emptyBreakdown() })
       }
     }
     console.log(`  Routes found: ${found}/${pairs.length}`)
@@ -451,6 +480,18 @@ async function main() {
     const stats = modeGraphStats[mode]
     console.log(
       `| ${mode} | ${rows.length}/${total} | ${avg(rows.map((r) => r.distanceKm)).toFixed(1)} km | ${avg(rows.map((r) => r.durationMin)).toFixed(0)} min | ${(avg(rows.map((r) => r.preferredPct)) * 100).toFixed(0)}% | ${(avg(rows.map((r) => r.walkingPct)) * 100).toFixed(0)}% | ${stats.nodes} | ${stats.edges} |`
+    )
+  }
+
+  console.log('\n=== PER-MODE LEVEL BREAKDOWN (% of route distance per PathLevel) ===\n')
+  console.log('| Mode | LTS 1a | LTS 1b | LTS 2a | LTS 2b | LTS 3 | LTS 4 |')
+  console.log('|------|:---:|:---:|:---:|:---:|:---:|:---:|')
+  const pctOf = (rows: ModeRow[], lvl: PathLevel): string =>
+    `${(avg(rows.map((r) => r.levelPct[lvl])) * 100).toFixed(0)}%`
+  for (const mode of MODES) {
+    const rows = modeRows.filter((r) => r.mode === mode && r.found)
+    console.log(
+      `| ${mode} | ${pctOf(rows, '1a')} | ${pctOf(rows, '1b')} | ${pctOf(rows, '2a')} | ${pctOf(rows, '2b')} | ${pctOf(rows, '3')} | ${pctOf(rows, '4')} |`
     )
   }
 

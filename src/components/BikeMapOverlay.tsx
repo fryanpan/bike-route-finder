@@ -3,6 +3,8 @@ import { useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem } from '../services/overpass'
 import { PREFERRED_COLOR, OTHER_COLOR } from '../utils/classify'
+import { classifyEdge } from '../utils/lts'
+import { dashArrayForLevel } from './SimpleLegend'
 import { getStreetImage } from '../services/mapillary'
 import type { ClassificationRule } from '../services/rules'
 import type { OsmWay } from '../utils/types'
@@ -109,10 +111,17 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
       const isPreferred = itemName !== null && preferredItemNames.has(itemName)
       const color = isPreferred ? PREFERRED_COLOR : OTHER_COLOR
 
+      // Line style (solid/long-dash/dots) encodes the path level so users can
+      // visually distinguish Car-free (solid) from Bike boulevards (long-dash)
+      // from Painted bike lanes (dots). See SimpleLegend.tsx.
+      const { pathLevel } = classifyEdge(way.tags)
+      const dashArray = dashArrayForLevel(pathLevel)
+
       const polyline = L.polyline(way.coordinates, {
         color,
         weight: overlayWeight,
         opacity: 0.7,
+        dashArray,
         renderer: canvasRenderer,
       })
 

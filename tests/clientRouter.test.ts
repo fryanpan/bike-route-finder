@@ -108,8 +108,9 @@ describe('buildRoutingGraph', () => {
     expect(link).toBeTruthy()
     expect(link!.data.isWalking).toBe(true)
     // Cost = time = distance / walking_speed. Kid-starting-out walking
-    // pace is 2 km/h (a 4-year-old walking alongside a parent).
-    const walkingSpeed = 2 / 3.6 // kid-starting-out walkingSpeedKmh
+    // pace is 1 km/h (a 4-year-old walking alongside a parent, per the
+    // 2026-04-21 path-categories spec: slowest kid walks slowest).
+    const walkingSpeed = 1 / 3.6 // kid-starting-out walkingSpeedKmh
     const expectedCost = link!.data.distance / walkingSpeed
     expect(link!.data.cost).toBeCloseTo(expectedCost, 0)
   })
@@ -293,25 +294,27 @@ describe('routeOnGraph', () => {
     expect(link!.data.isWalking).toBe(true)
   })
 
-  test('kid-starting-out bridge-walks ordinary quiet residential; kid-confident rides it', () => {
-    // Quiet residential street with no bike-priority designation.
-    // kid-confident accepts it for riding (full Furth LTS 1), kid-starting-out
-    // only bridge-walks it (cars aren't structurally constrained so riding
-    // isn't safe at this level, but the sidewalk lets the rider walk across).
+  test('kid-starting-out and kid-confident both bridge-walk plain residential (LTS 2b)', () => {
+    // Per 2026-04-21 path-categories plan, quiet residential without legal
+    // bike priority classifies as LTS 2b — below the kid-confident ceiling
+    // of 1a/1b. Both starting-out and confident bridge-walk it. The next
+    // tier up (kid-traffic-savvy) accepts it for riding with a 1.5× cost
+    // multiplier; carrying-kid and training accept it outright.
     const residentialWays: OsmWay[] = [{
       osmId: 43,
       itemName: null,
       tags: { highway: 'residential', maxspeed: '30' },
       coordinates: [[52.5000, 13.4000], [52.5010, 13.4000]],
     }]
-    const gStart = buildRoutingGraph(residentialWays, 'kid-starting-out', new Set())
-    const gConf  = buildRoutingGraph(residentialWays, 'kid-confident',    new Set())
+    const gStart   = buildRoutingGraph(residentialWays, 'kid-starting-out',   new Set())
+    const gConf    = buildRoutingGraph(residentialWays, 'kid-confident',      new Set())
+    const gSavvy   = buildRoutingGraph(residentialWays, 'kid-traffic-savvy',  new Set())
+    const gCarry   = buildRoutingGraph(residentialWays, 'carrying-kid',       new Set())
 
-    const startLink = gStart.getLink('52.50000,13.40000', '52.50100,13.40000')
-    const confLink  = gConf.getLink('52.50000,13.40000', '52.50100,13.40000')
-
-    expect(startLink!.data.isWalking).toBe(true)
-    expect(confLink!.data.isWalking).toBe(false)
+    expect(gStart.getLink('52.50000,13.40000', '52.50100,13.40000')!.data.isWalking).toBe(true)
+    expect(gConf.getLink('52.50000,13.40000', '52.50100,13.40000')!.data.isWalking).toBe(true)
+    expect(gSavvy.getLink('52.50000,13.40000', '52.50100,13.40000')!.data.isWalking).toBe(false)
+    expect(gCarry.getLink('52.50000,13.40000', '52.50100,13.40000')!.data.isWalking).toBe(false)
   })
 
   test('kid-confident rides Fahrradstrasse, bridge-walks secondary painted lanes', () => {

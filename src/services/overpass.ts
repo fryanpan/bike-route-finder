@@ -1,5 +1,6 @@
 import type { OsmWay } from '../utils/types'
 import { BAD_SURFACES, BAD_SMOOTHNESS, ROUGH_ROAD_ITEM, isBadSurface } from '../utils/classify'
+import { classifyEdge } from '../utils/lts'
 import type { ClassificationRule } from './rules'
 import type { LatLngBounds } from 'leaflet'
 import * as Sentry from '@sentry/react'
@@ -179,15 +180,18 @@ export function classifyOsmTagsToItem(
   if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return ROUGH_ROAD_ITEM
   if (tags.surface && isBadSurface(tags.surface, profileKey)) return ROUGH_ROAD_ITEM
 
+  // Drive the item name from pathLevel (shared with routing) + tag specifics.
+  // This keeps display and routing in sync — a street classified as LTS 1b by
+  // classifyEdge is guaranteed to render as a 1b-tier item (Fahrradstraße /
+  // Living street / Bike boulevard), never as plain "Residential/local road".
+  // See docs/process/learnings.md ("One classifier drives both display and
+  // routing").
+  const { pathLevel } = classifyEdge(tags)
+
   const highway     = tags.highway ?? ''
   const cycleway    = tags.cycleway ?? ''
-  const bicycleRoad = tags.bicycle_road === 'yes'
+  const bicycleRoad = tags.bicycle_road === 'yes' || tags.cyclestreet === 'yes'
 
-  if (bicycleRoad) return 'Fahrradstrasse'
-  if (highway === 'cycleway' || highway === 'path' || highway === 'track') return 'Bike path'
-  if (highway === 'footway') return 'Shared foot path'
-
-  // Physically separated track (cycleway=track or physical separation on a lane)
   const cRight = tags['cycleway:right'] ?? ''
   const cLeft  = tags['cycleway:left']  ?? ''
   const cBoth  = tags['cycleway:both']  ?? ''
@@ -196,24 +200,37 @@ export function classifyOsmTagsToItem(
     cycleway === 'track' || cycleway === 'opposite_track' ||
     cRight === 'track' || cLeft === 'track' || cBoth === 'track'
 
-  const isPhysicallySeparatedLane =
-    (cycleway === 'lane' || cycleway === 'opposite_lane' ||
-     cRight === 'lane' || cLeft === 'lane' || cBoth === 'lane') && hasSeparation(tags)
+  const hasPaintedLaneTag =
+    cycleway === 'lane' || cycleway === 'opposite_lane' ||
+    cRight === 'lane' || cLeft === 'lane' || cBoth === 'lane'
 
-  if (isSeparatedTrack || isPhysicallySeparatedLane) return 'Elevated sidewalk path'
+  const isPhysicallySeparatedLane = hasPaintedLaneTag && hasSeparation(tags)
+  const hasBusLaneTag =
+    cycleway === 'share_busway' || cRight === 'share_busway' ||
+    cLeft === 'share_busway' || cBoth === 'share_busway'
 
-  if (cycleway === 'lane' || cycleway === 'opposite_lane' ||
-      cRight === 'lane' || cLeft === 'lane' || cBoth === 'lane') {
-    return 'Painted bike lane'
+  const isLocalAccessOnly = tags.motor_vehicle === 'destination' || tags.motor_vehicle === 'permissive'
+
+  switch (pathLevel) {
+    case '1a':
+      if (highway === 'footway') return 'Shared foot path'
+      if (isSeparatedTrack || isPhysicallySeparatedLane) return 'Elevated sidewalk path'
+      return 'Bike path'
+    case '1b':
+      if (bicycleRoad) return 'Fahrradstrasse'
+      if (highway === 'living_street') return 'Living street'
+      if (highway === 'residential' && isLocalAccessOnly) return 'Bike boulevard'
+      return 'Fahrradstrasse' // fallback — bike-prioritized but none of the above
+    case '2a':
+      if (hasBusLaneTag) return 'Shared bus lane'
+      return 'Painted bike lane'
+    case '2b':
+      return 'Residential/local road'
+    case '3':
+      return 'Other road'
+    case '4':
+      return null // LTS 4 not shown in overlay
   }
-
-  if (cycleway === 'share_busway' || cRight === 'share_busway' || cLeft === 'share_busway' || cBoth === 'share_busway')
-    return 'Shared bus lane'
-  if (highway === 'living_street') return 'Living street'
-  if (highway === 'residential' || highway === 'tertiary' || highway === 'unclassified' || highway === 'service')
-    return 'Residential/local road'
-
-  return null
 }
 
 interface OverpassElement {
