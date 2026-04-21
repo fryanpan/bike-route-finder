@@ -2,6 +2,7 @@ import L from 'leaflet'
 import { useEffect, useRef, useMemo, useState } from 'react'
 import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
+import { dashArrayForLevel } from './SimpleLegend'
 import { getVisibleTiles, getCachedTile, latLngToTile, classifyOsmTagsToItem } from '../services/overpass'
 import { getStreetImage } from '../services/mapillary'
 import BikeMapOverlay from './BikeMapOverlay'
@@ -403,6 +404,9 @@ function RouteDisplay({
           const color = isPreferred ? PREFERRED_COLOR : OTHER_COLOR
           const legendItem = getLegendItem(seg.itemName, profileKey)
           const isSelected = selected?.index === i
+          // Line style encodes the path level (solid=1a, long-dash=1b, dots=2a).
+          // Matches the overlay + SimpleLegend rendering.
+          const dashArray = legendItem ? dashArrayForLevel(legendItem.level) : undefined
           return (
             <Polyline
               key={i}
@@ -410,6 +414,7 @@ function RouteDisplay({
               color={color}
               weight={isSelected ? 18 : 16}
               opacity={isSelected ? 1 : 0.95}
+              dashArray={dashArray}
               eventHandlers={{
                 click: (e) => {
                   setSelected({ seg, index: i, latlng: [e.latlng.lat, e.latlng.lng] })

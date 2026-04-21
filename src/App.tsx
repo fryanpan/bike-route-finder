@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } fro
 import { useGeolocation } from './hooks/useGeolocation'
 const Map = lazy(() => import('./components/Map'))
 const AuditPanel = lazy(() => import('./components/AuditPanel'))
-import Legend from './components/Legend'
+import SimpleLegend from './components/SimpleLegend'
 import SearchBar from './components/SearchBar'
 import type { QuickOption } from './components/SearchBar'
 import PlaceCard from './components/PlaceCard'
@@ -708,18 +708,9 @@ export default function App() {
           </div>
         )}
 
-        {/* Legend (hidden during routing on mobile via CSS) */}
+        {/* Simple inline legend — compact 3-row tier guide with line-style swatches */}
         <div className="map-legend-wrap">
-          <Legend
-            segments={route?.segments ?? null}
-            overlayOn={overlayEnabled}
-            profileKey={selectedProfile}
-            preferredItemNames={preferredItemNames}
-            onMoveToPreferred={moveToPreferred}
-            onMoveToOther={moveToOther}
-            showOtherPaths={showOtherPaths}
-            onToggleOtherPaths={() => setShowOtherPaths((v) => !v)}
-          />
+          <SimpleLegend profileKey={selectedProfile} />
         </div>
 
         {/* Bike layer status + audit gear + preferences */}
