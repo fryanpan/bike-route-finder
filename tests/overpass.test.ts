@@ -150,8 +150,33 @@ describe('classifyOsmTagsToItem', () => {
     expect(classifyOsmTagsToItem({ highway: 'residential' }, 'kid-starting-out')).toBe('Residential/local road')
   })
 
-  it('returns Shared footway for footway', () => {
-    expect(classifyOsmTagsToItem({ highway: 'footway' }, 'kid-starting-out')).toBe('Shared foot path')
+  it('returns Shared footway for footway with bicycle=yes', () => {
+    // Plain footway without a bicycle tag means bikes NOT allowed in OSM —
+    // shouldn't render as shared. Only footways explicitly marked for cyclists
+    // count as 1a infra.
+    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'yes' }, 'kid-starting-out')).toBe('Shared foot path')
+    expect(classifyOsmTagsToItem({ highway: 'footway', bicycle: 'designated' }, 'kid-starting-out')).toBe('Shared foot path')
+  })
+
+  it('returns Bike boulevard for residential with motor_vehicle=destination', () => {
+    // SF Slow Streets, Berkeley Bicycle Boulevards, Portland Neighborhood
+    // Greenways, UK Low Traffic Neighbourhoods all use this tag pattern.
+    expect(classifyOsmTagsToItem({ highway: 'residential', motor_vehicle: 'destination' }, 'kid-confident')).toBe('Bike boulevard')
+    expect(classifyOsmTagsToItem({ highway: 'residential', motor_vehicle: 'permissive' }, 'kid-confident')).toBe('Bike boulevard')
+  })
+
+  it('returns Other road for busy residentials', () => {
+    // residential + maxspeed 50 + 4 lanes → LTS 3 per classifyEdge
+    expect(classifyOsmTagsToItem({ highway: 'residential', maxspeed: '50', lanes: '4' }, 'carrying-kid')).toBe('Other road')
+  })
+
+  it('returns Other road for painted lane on faster streets', () => {
+    // Painted lane on maxspeed > 30 demotes to LTS 3 (our kid-first tightening)
+    expect(classifyOsmTagsToItem({ highway: 'tertiary', cycleway: 'lane', maxspeed: '50' }, 'kid-traffic-savvy')).toBe('Other road')
+  })
+
+  it('returns Painted bike lane for painted lane on quiet street', () => {
+    expect(classifyOsmTagsToItem({ highway: 'residential', cycleway: 'lane', maxspeed: '30' }, 'kid-traffic-savvy')).toBe('Painted bike lane')
   })
 })
 
