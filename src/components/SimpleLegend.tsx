@@ -24,16 +24,16 @@ const COLOR_1B = '#059669' // emerald-600 — bike-priority shared
 const COLOR_2A = '#10b981' // emerald-500 — painted lane on quiet street
 const COLOR_NO_INFRA = '#1e3a8a' // blue-900 — no bike infra (2b and 3)
 
-// Display titles match docs/product/plans/2026-04-21-path-categories-plan.md.
-// 2b reuses 1b's long-dash style (road with priority-ish character);
-// 3 reuses 2a's dot style (road with some marking). Both in navy blue so
-// they read as "shared road" rather than "bike infra."
+// Display titles match docs/product/path-types-reference.md Table 1.
+// 2b and 3 share 2a's dot style + 0.6× weight — they're both "quick
+// narrow lines on shared roads" visually; the navy color distinguishes
+// them from the emerald bike-infra tiers (1a/1b/2a).
 export const SIMPLE_TIERS: DisplayTier[] = [
   { level: '1a', title: 'Car-free',                  description: 'Bike paths, shared foot paths, elevated sidewalk paths', dashArray: undefined, color: COLOR_1A },
   { level: '1b', title: 'Bikeway with minimal cars', description: 'Fahrradstraße, living streets, bike boulevards',         dashArray: '12 6',    color: COLOR_1B },
   { level: '2a', title: 'Bike route beside cars',    description: 'Painted bike lane or shared bus lane on quiet streets',  dashArray: '2 4',     color: COLOR_2A },
-  { level: '2b', title: 'Residential or busier lane',description: 'Quiet residential streets, painted lanes on busier roads', dashArray: '12 6',  color: COLOR_NO_INFRA },
-  { level: '3',  title: 'Shared road',               description: 'Other roads shared with car traffic',                      dashArray: '2 4',   color: COLOR_NO_INFRA },
+  { level: '2b', title: 'Quiet residential street',  description: 'Residential street, no bike infra, speed ≤ 30 km/h',     dashArray: '2 4',     color: COLOR_NO_INFRA },
+  { level: '3',  title: 'Higher traffic street',     description: 'Streets 30–50 km/h, ≤ 3 lanes, with or without painted lane', dashArray: '2 4', color: COLOR_NO_INFRA },
 ]
 
 /** Leaflet dash-array string for a given path level, or undefined (solid). */
@@ -42,8 +42,8 @@ export function dashArrayForLevel(level: PathLevel): string | undefined {
     case '1a': return undefined
     case '1b': return '12 6'
     case '2a': return '2 4'
-    case '2b': return '12 6' // long dash (same as 1b) — "road with some priority character"
-    case '3':  return '2 4'  // dots (same as 2a)       — "road with some markings"
+    case '2b': return '2 4' // dots — same as 2a (navy color distinguishes)
+    case '3':  return '2 4' // dots — same as 2a (navy color distinguishes)
     default:   return undefined // 4 (non-rideable)
   }
 }
@@ -66,13 +66,15 @@ export function colorForLevel(level: PathLevel): string {
 
 /**
  * Weight multiplier for a level, relative to the caller's base weight.
- * 2a and 3 render slightly thinner (0.6×) so the three bike-infra tiers
- * have a visual hierarchy: Car-free (thick) → Bike-priority (normal) →
- * Painted-lane (thin). The same applies to the shared-road dots (level 3).
+ * 2a / 2b / 3 render thinner (0.6×) so the bike-infra tiers have a visual
+ * hierarchy: Car-free (thick) → Bike-priority (normal) → everything else
+ * (thin). 2b and 3 also share 2a's dot pattern; the navy color carries
+ * the "no bike infra" distinction.
  */
 export function weightMultiplierForLevel(level: PathLevel): number {
   switch (level) {
     case '2a': return 0.6
+    case '2b': return 0.6
     case '3':  return 0.6
     default:   return 1
   }

@@ -11,7 +11,7 @@ The app renders every bike-relevant way using one of six path levels. Levels 1a�
 | 1a    | Car-free                  | Bike paths, shared foot paths, elevated sidewalk paths — no car interaction | emerald-700 `#047857` | solid            | normal      |
 | 1b    | Bikeway with minimal cars | Shared streets engineered for bike priority: Fahrradstraße, living streets, bike boulevards, SF Slow Streets | emerald-600 `#059669` | long dash `12 6` | normal      |
 | 2a    | Bike route beside cars    | Painted bike lane or shared bus lane on a quiet street (speed ≤ 30 km/h) | emerald-500 `#10b981` | dots `2 4`       | 0.6×        |
-| 2b    | Quiet residential street  | Quiet residential street with no bike infra, speed ≤ 30 km/h.  Separate category because I don’t know how reliably “quiet” these are | navy `#1e3a8a`        | long dash `12 6` | normal      |
+| 2b    | Quiet residential street  | Quiet residential street with no bike infra, speed ≤ 30 km/h.  Separate category because I don’t know how reliably “quiet” these are | navy `#1e3a8a`        | dots `2 4`       | 0.6×        |
 | 3     | Higher traffic street     | Streets with speed limit between 30-50kmh, with or without a painted bike lane.  And 3 lanes or less in each direction.This is close to but slightly less nuanced than LTS at the moment | navy `#1e3a8a`        | dots `2 4`       | 0.6×        |
 | 4     | (not shown)               | Primary / trunk / motorway without a protected bike path (higher speeds or more lanes than level 3) | —                     | —                | hidden      |
 
