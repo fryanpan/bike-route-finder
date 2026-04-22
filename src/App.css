@@ -2725,3 +2725,28 @@ body.mobile-preview-label {
   min-height: 40px;
 }
 .feedback-btn:hover { background: #f9fafb; }
+
+/* ── External router compare links (admin setting) ───────────────────── */
+.route-compare-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.route-compare-label { flex-shrink: 0; }
+.route-compare-btn {
+  padding: 4px 10px;
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+.route-compare-btn:hover { background: #eff6ff; }

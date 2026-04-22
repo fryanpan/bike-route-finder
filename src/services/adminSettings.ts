@@ -52,6 +52,9 @@ export interface AdminSettings {
   showNonPreferredInLegend: boolean
   /** Toggle: show the "Training" mode in the mode picker. Default off. */
   showTrainingMode: boolean
+  /** Toggle: show "Compare on BRouter / Valhalla" links in the route
+   *  panel for benchmark sanity-checking. Default off. */
+  showExternalRouterLinks: boolean
   /** Per-mode routing parameters. Merge with compiled defaults from
    *  MODE_RULES — user-edited values win. */
   modeRouting: Partial<Record<RideMode, Partial<ModeRoutingParams>>>
@@ -75,6 +78,7 @@ export const DEFAULT_SETTINGS: AdminSettings = {
   roughSurfaceMultiplierGlobal: 5.0,
   showNonPreferredInLegend: false,
   showTrainingMode: false,
+  showExternalRouterLinks: false,
   modeRouting: {},
 }
 

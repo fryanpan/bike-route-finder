@@ -35,8 +35,11 @@ import { fetchRules } from './services/rules'
 import type { ClassificationRule } from './services/rules'
 // Chunk A shelved: BERLIN_PROFILE import removed. See note above.
 import RouteList from './components/RouteList'
+import RouteCompareLinks from './components/RouteCompareLinks'
+import { useAdminSettings } from './services/adminSettings'
 import type { Place, Route, RouteSegment, ProfileMap } from './utils/types'
 import { Sentry } from './sentry'
+import type { RideMode } from './data/modes'
 
 type UiState = 'search' | 'place-detail' | 'routing'
 
@@ -158,6 +161,7 @@ async function resolveCurrentLocation(): Promise<Place | null> {
 
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileMap>(loadProfiles)
+  const adminSettings = useAdminSettings()
 
   const initialState = getInitialState()
   const [selectedProfile, setSelectedProfile] = useState(initialState.profileKey)
@@ -818,6 +822,14 @@ export default function App() {
                   onSelect={setSelectedRouteIndex}
                   preferredItemNames={preferredItemNames}
                 />
+                {adminSettings.showExternalRouterLinks && startPoint && endPoint && (
+                  <RouteCompareLinks
+                    start={{ lat: startPoint.lat, lng: startPoint.lng }}
+                    end={{ lat: endPoint.lat, lng: endPoint.lng }}
+                    waypoints={waypoints}
+                    mode={selectedProfile as RideMode}
+                  />
+                )}
               </div>
             )}
           </>
