@@ -102,7 +102,8 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     ]},
   ],
 
-  // LTS 1a-3 preferred. 2a/2b cost 1.2×; 3 costs 1.5×.
+  // LTS 1a-2b preferred. 2a/2b cost 1.2×. LTS 3 rejected — most
+  // carrying-kid riders avoid higher-traffic infra even when accepted.
   'carrying-kid': [
     { defaultPreferred: true, items: [
       { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
@@ -118,12 +119,10 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
       { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
       { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
     ]},
-    { defaultPreferred: true, items: [
-      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: true, level: '3' },
-      { icon: '🛣️', name: 'Major road',                  defaultPreferred: true, level: '3' },
-    ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: false, level: '1a' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3' },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3' },
     ]},
   ],
 

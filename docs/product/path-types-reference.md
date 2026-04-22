@@ -8,11 +8,11 @@ The app renders every bike-relevant way using one of six path levels. Levels 1a�
 
 | Level | Legend title              | Meaning                                                      | Map color             | Line style       | Line weight |
 | ----- | ------------------------- | ------------------------------------------------------------ | --------------------- | ---------------- | ----------- |
-| 1a    | Car-free                  | Bike paths, shared foot paths, elevated sidewalk paths — no car interaction | emerald-700 `#047857` | solid            | normal      |
-| 1b    | Bikeway with minimal cars | Shared streets engineered for bike priority: Fahrradstraße, living streets, bike boulevards, SF Slow Streets | emerald-600 `#059669` | long dash `12 6` | normal      |
-| 2a    | Bike route beside cars    | Painted bike lane or shared bus lane on a quiet street (speed ≤ 30 km/h) | emerald-500 `#10b981` | dots `2 4`       | 0.6×        |
-| 2b    | Quiet residential street  | Quiet residential street with no bike infra, speed ≤ 30 km/h.  Separate category because I don’t know how reliably “quiet” these are | navy `#1e3a8a`        | dots `2 4`       | 0.6×        |
-| 3     | Higher traffic street     | Streets with speed limit between 30-50kmh, with or without a painted bike lane.  And 3 lanes or less in each direction.This is close to but slightly less nuanced than LTS at the moment | navy `#1e3a8a`        | dots `2 4`       | 0.6×        |
+| 1a    | Car-free                  | Bike paths, shared foot paths, elevated sidewalk paths — no car interaction | emerald-900 `#064e3b` | solid            | 0.75×       |
+| 1b    | Bikeway with minimal cars | Shared streets engineered for bike priority: Fahrradstraße, living streets, bike boulevards, SF Slow Streets | emerald-700 `#047857` | solid            | 0.75×       |
+| 2a    | Bike route beside cars    | Painted bike lane or shared bus lane on a quiet street (speed ≤ 30 km/h) | emerald-400 `#34d399` | solid            | 0.6×        |
+| 2b    | Quiet residential street  | Quiet residential street with no bike infra, speed ≤ 30 km/h.  Separate category because I don’t know how reliably “quiet” these are | navy `#6f80b4`        | solid            | 0.6×        |
+| 3     | Higher traffic street     | Streets with speed limit between 30-50kmh, with or without a painted bike lane.  And 3 lanes or less in each direction.This is close to but slightly less nuanced than LTS at the moment | navy `#6f80b4`        | dots `2 4`       | 0.6×        |
 | 4     | (not shown)               | Primary / trunk / motorway without a protected bike path (higher speeds or more lanes than level 3) | —                     | —                | hidden      |
 
 Rough-surface override: any path whose `surface` tag is in the mode's bad-surface set (cobblestone, gravel, dirt, and for higher-speed modes also paving_stones) **keeps its underlying path level** (1a / 1b / 2a / 2b / 3) and gets a **5× routing cost multiplier** applied on top. Rough-surface paths are **hidden from the overlay** (not shown in discovery mode) but remain in the routing graph, so a route can still traverse them if no better option exists — the 5× multiplier ensures they're used only as a last resort. This decouples "what infrastructure this is" (path level) from "how annoying this is to ride" (surface penalty), and keeps the discovery view focused on paths you'd actually enjoy riding. 
@@ -26,7 +26,7 @@ Each travel mode treats a subset of path levels as preferred. Preferred levels s
 | Kid starting out  | yes | —   | —   | —   | —   | Fully car-free only. Fahrradstraßen bridge-walked, not ridden. Default on first launch. |
 | Kid confident     | yes | yes | —   | —   | —   | Adds bike-priority shared streets (Fahrradstraße / Living street / Bike boulevard). |
 | Kid traffic-savvy | yes | yes | yes | yes | —   | Adds painted lanes on quiet streets AND quiet residential w/o bike infra. 2a + 2b ride at 1.5× cost of 1a/1b. |
-| Carrying kid      | yes | yes | yes | yes | yes | Adult pilots. 2a + 2b ride at 1.2× cost of 1a/1b; LTS 3 at 1.5×. Painted lanes on 30–50 km/h streets count as LTS 3 (higher traffic street), not 2b. |
+| Carrying kid      | yes | yes | yes | yes | —   | Adult pilots. 2a + 2b ride at 1.2× cost of 1a/1b. LTS 3 rejected — most carrying-kid riders strongly avoid higher-traffic infra. |
 | Training          | yes | yes | yes | yes | yes | Adult fitness. Accepts any LTS ≤ 3 at full speed (no cost multipliers). |
 
 ## 3. Raw OSM tags → path-level → display name

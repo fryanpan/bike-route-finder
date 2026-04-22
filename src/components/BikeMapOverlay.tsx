@@ -141,7 +141,7 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
       const polyline = L.polyline(way.coordinates, {
         color,
         weight,
-        opacity: 0.7,
+        opacity: 1.0,
         dashArray,
         renderer: canvasRenderer,
       })

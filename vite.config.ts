@@ -20,6 +20,14 @@ export default defineConfig({
   server: {
     host: true, // listen on 0.0.0.0 so Tailscale / LAN hosts can reach it
     port: 5173,
+    // Allow Tailscale + .local names to hit the dev server. Vite 5 blocks
+    // anything not explicitly listed by default.
+    allowedHosts: [
+      '.ts.net',       // Tailscale magic DNS (tailXXXX.ts.net)
+      '.local',        // mDNS / Bonjour hostnames
+      'localhost',
+      '127.0.0.1',
+    ],
     proxy: {
       '/api': 'http://localhost:8791',
     },

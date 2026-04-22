@@ -201,10 +201,12 @@ export const MODE_RULES: Record<RideMode, ModeRule> = {
       'paving — a trailer or bakfiets on cobble is painful for the passenger. ' +
       'Hardware variants (trailer / longtail / bucket / child seat) collapse into one ' +
       'mode; fine-grained preferences (width, e-assist, gradient) are expressed in Layer 3.',
-    // Accepts 1a-2b outright plus LTS 3 with a 2× cost multiplier. LTS 4
-    // rejected (bridge-walks if a sidewalk exists).
-    acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b', '3']),
-    levelMultipliers: { '2a': 1.2, '2b': 1.2, '3': 1.5 },
+    // Accepts 1a-2b; LTS 3 rejected (bridge-walks if sidewalk exists).
+    // Most carrying-kid riders strongly prefer to avoid the higher-traffic
+    // infra that LTS 3 captures, even when the router would otherwise take
+    // it at a higher cost.
+    acceptedLevels: new Set<PathLevel>(['1a', '1b', '2a', '2b']),
+    levelMultipliers: { '2a': 1.2, '2b': 1.2 },
     roughSurfaceMultiplier: 5.0,
     surfaceOk: SMOOTH_ONLY,
     cobbleHandling: 'reject',

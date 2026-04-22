@@ -202,14 +202,14 @@ describe('getDefaultPreferredItems', () => {
     expect(items.has('Major road')).toBe(false)
   })
 
-  it('adds Major road for carrying-kid (LTS 3 preferred with 1.5× cost)', () => {
+  it('carrying-kid accepts LTS 1a-2b but NOT LTS 3 (most riders avoid higher-traffic infra)', () => {
     const items = getDefaultPreferredItems('carrying-kid')
     expect(items.has('Bike path')).toBe(true)
     expect(items.has('Painted bike lane on quiet street')).toBe(true)
     expect(items.has('Quiet street')).toBe(true)
-    expect(items.has('Painted bike lane on major road')).toBe(true)
-    expect(items.has('Major road')).toBe(true)
-    expect(items.has('Elevated sidewalk path')).toBe(false) // opted out for carrying-kid
+    expect(items.has('Painted bike lane on major road')).toBe(false) // LTS 3 off
+    expect(items.has('Major road')).toBe(false)                      // LTS 3 off
+    expect(items.has('Elevated sidewalk path')).toBe(false)          // opted out for carrying-kid
   })
 
   it('returns defaultPreferred items for training profile', () => {
