@@ -521,11 +521,16 @@ function RecenterButton({ currentLocation }: { currentLocation: { lat: number; l
       aria-label="Center on current location"
       onClick={() => {
         if (!currentLocation) return
-        const currentZoom = map.getZoom()
-        // Keep the user's zoom if they've zoomed in; otherwise default
-        // to a useful 15 (street level).
-        const z = currentZoom >= 14 ? currentZoom : 15
-        map.setView([currentLocation.lat, currentLocation.lng], z, { animate: true })
+        // Zoom to ~1 km in each direction (2 km total span) regardless
+        // of the user's current zoom. Uses fitBounds so the aspect-ratio
+        // adjustment happens automatically for portrait vs landscape.
+        const { lat, lng } = currentLocation
+        const latDelta = 1 / 111                       // ~1 km lat
+        const lngDelta = 1 / (111 * Math.cos(lat * Math.PI / 180)) // ~1 km lng at this lat
+        map.fitBounds(
+          [[lat - latDelta, lng - lngDelta], [lat + latDelta, lng + lngDelta]],
+          { animate: true, padding: [0, 0] },
+        )
       }}
     >
       ◎

@@ -962,16 +962,16 @@ button { font-family: inherit; cursor: pointer; }
 .recenter-btn {
   position: absolute;
   right: 10px;
-  bottom: 90px; /* above leaflet zoom controls (bottom-right by default) */
+  bottom: 110px; /* above leaflet zoom controls (bottom-right by default) */
   z-index: 500;
-  width: 40px; height: 40px;
-  border-radius: 8px;
+  width: 56px; height: 56px;
+  border-radius: 12px;
   background: #fff;
   border: 1px solid rgba(0,0,0,.2);
-  font-size: 20px;
+  font-size: 28px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 5px rgba(0,0,0,.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
   transition: background .12s, transform .12s;
   line-height: 1;
 }
