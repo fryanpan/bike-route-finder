@@ -52,9 +52,48 @@ Maps OSM tag combinations (from `classifyEdge`) to a path level and shows the di
 | `highway=primary` / `trunk` / `motorway` without protected path | Non-rideable for our purposes                                | 4          | (hidden)                          |
 | Any of above with bad `surface` tag for the mode             | Reclassified for routing cost; overlay style unchanged       | —          | Rough surface                     |
 
-### Bad surfaces (bad for which modes)
+### Surface handling (binary: rough or not)
 
-| Surface                                                      | kid-starting-out, kid-confident | kid-traffic-savvy, carrying-kid, training |
-| ------------------------------------------------------------ | ------------------------------- | ----------------------------------------- |
-| cobblestone, sett, unhewn_cobblestone, gravel, unpaved, dirt, earth, ground, mud, sand, grass, fine_gravel, pebblestone, woodchips | bad                             | bad                                       |
-| paving_stones (Berlin's standard bike-path material)         | fine at kid speed               | bad — too bumpy at 16+ km/h               |
+One list, same for every mode, used for both overlay-hide and the 5×
+routing cost penalty (per 2026-04-23 simplification). Riders experience
+these surfaces the same way regardless of mode, so per-mode splitting
+was dropped.
+
+**Rough** — hidden from the overlay + 5× routing cost:
+
+| OSM `surface=*` | Why rough |
+|---|---|
+| `mud` | Wet/soft, often unrideable |
+| `sand` | Wheels sink |
+| `grass` | Soft and slow |
+| `gravel` | Coarse loose stones, bumpy |
+| `pebblestone` | Small round pebbles, very loose |
+| `woodchips` | Loose wood chips, slow and shifting |
+| `cobblestone` | Rounded stones, classic bumpy European pavement |
+| `unhewn_cobblestone` | Raw-cut cobbles, bumpiest variant |
+| `cobblestone:flattened` | Flattened cobbles, still bumpy |
+| `sett` | Cut stone blocks, less bumpy than cobblestone but still rough |
+
+Plus any way tagged `smoothness=bad` / `very_bad` / `horrible` /
+`very_horrible` / `impassable` is treated as rough regardless of
+surface tag.
+
+**Not rough** — visible on the map + normal routing cost:
+
+| OSM `surface=*` | Notes |
+|---|---|
+| `asphalt` | Standard smooth asphalt |
+| `concrete` | Concrete pavement |
+| `concrete:plates` | Large concrete slabs (some seams) |
+| `concrete:lanes` | Concrete in strips with joints |
+| `paved` | Generic "paved" (usually asphalt) |
+| `paving_stones` | Rectangular modular pavers — Berlin bike-path standard |
+| `compacted` | Compacted gravel/rock, firm — typical compacted forest path |
+| `fine_gravel` | Small chips, smooth — typical maintained forest/park path |
+| `dirt` | Natural dirt (wide forest double-tracks ride fine) |
+| `earth` | Natural earth |
+| `ground` | Natural ground |
+| `unpaved` | Generic unpaved |
+| `wood` | Wooden boards (boardwalks) |
+| `metal` | Metal grating |
+| any other / untagged | Assumed not rough |

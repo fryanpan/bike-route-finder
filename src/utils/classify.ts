@@ -332,69 +332,52 @@ export function getLegendItem(name: string | null, profileKey: string): LegendIt
 // If you need this for benchmarking against Valhalla, see
 // src/services/benchmark/valhalla.ts.
 
-// Surfaces that are genuinely unrideable: very soft (mud/sand/grass),
-// or coarse enough to be painful on any bike (gravel, pebblestone).
-// These get hidden from the overlay AND carry the full rough-surface
-// routing penalty — router avoids them unless no alternative exists.
-// Wide well-maintained double-track dirt paths common in German forests
-// are NOT in this set — `surface=dirt` is rideable (and common).
+// THE rough-surface list. Binary: a surface is either rough or it isn't.
+// Rough surfaces are hidden from the overlay AND carry the 5× routing
+// cost penalty. One list, used everywhere — no mode-specific overrides
+// (per Bryan 2026-04-23 "let's just have things that are rough or
+// things that are not rough and have that be consistent for both the
+// overlay and also for routing").
+//
+// Rough = any of:
+//   - soft/unrideable: mud, sand, grass
+//   - loose/coarse: gravel, pebblestone, woodchips
+//   - bumpy paved: cobblestone (+ variants), sett
+//
+// Not rough (always visible + normal cost):
+//   - asphalt, concrete(+plates/lanes), paved, paving_stones
+//   - compacted, fine_gravel, dirt, earth, ground, unpaved
+//   - wood, metal
 export const UNRIDEABLE_SURFACES = new Set([
   'mud', 'sand', 'grass',
-  'gravel', 'pebblestone',
-])
-
-// Routing-rough surfaces (for the per-mode cost multiplier). Includes
-// unrideables + cobblestone/sett (visible on overlay but penalized in
-// routing — cobbles exist in central Berlin and riders want to see them
-// on the map but avoid them when alternatives exist).
-//
-// `dirt`, `earth`, `ground`, `unpaved`, `fine_gravel`, `compacted`, and
-// `woodchips` are NOT in this set — well-maintained forest paths use
-// these surfaces and they ride fine.
-const ALWAYS_BAD_SURFACES = new Set([
-  ...UNRIDEABLE_SURFACES,
+  'gravel', 'pebblestone', 'woodchips',
   'cobblestone', 'sett', 'unhewn_cobblestone', 'cobblestone:flattened',
 ])
 
-// Surfaces that are rough only at higher speeds (trailer pulling, training ride).
-// Paving stones are the standard Berlin bike path material — fine for a toddler
-// at low speed, but bumpy at trailer/training speed.
-const SPEED_SENSITIVE_SURFACES = new Set([
-  'paving_stones', 'paving_stones:lanes',
-])
+// Alias — same list for routing cost as for overlay-hide. Kept named
+// ALWAYS_BAD_SURFACES for backwards-compat with internal callers that
+// distinguished "always bad" from "speed-sensitive". The distinction
+// collapsed in the 2026-04-23 simplification.
+const ALWAYS_BAD_SURFACES = UNRIDEABLE_SURFACES
 
 /**
- * Check if a surface is bad for a given travel mode.
- * - Slow kid modes (kid-starting-out, kid-confident): only universally bad
- *   surfaces. Paving stones are OK — Berlin's standard bike path material,
- *   fine at 5–10 km/h on a kid bike.
- * - Higher-speed modes (kid-traffic-savvy at 16 km/h, carrying-kid with a
- *   trailer, training at 30 km/h): paving stones count as rough too.
- *
- * Invariant: the set of "fine" surfaces for kid-confident is a strict
- * SUPERSET of kid-starting-out, so toggling from starting-out → confident
- * never makes a green segment turn orange on the map.
+ * Check if a surface is rough. Binary — same for every mode, same for
+ * overlay + routing (per Bryan 2026-04-23). The `profileKey` parameter
+ * is kept for API stability but no longer influences the result.
  */
-export function isBadSurface(surface: string, profileKey: string): boolean {
-  if (ALWAYS_BAD_SURFACES.has(surface)) return true
-  const slowKidMode = profileKey === 'kid-starting-out' || profileKey === 'kid-confident'
-  if (!slowKidMode && SPEED_SENSITIVE_SURFACES.has(surface)) return true
-  return false
+export function isBadSurface(surface: string, _profileKey?: string): boolean {
+  return UNRIDEABLE_SURFACES.has(surface)
 }
 
-// Kept for backwards compat with overpass.ts import (used in Overpass query filter).
-// This is the union of all bad surfaces across all modes.
-export const BAD_SURFACES = new Set([...ALWAYS_BAD_SURFACES, ...SPEED_SENSITIVE_SURFACES])
+// Used by the Overpass query filter. Same as UNRIDEABLE_SURFACES now
+// that mode-sensitive surfaces are gone.
+export const BAD_SURFACES = UNRIDEABLE_SURFACES
 
 // Smoothness values that indicate a rough road regardless of surface tag.
+// Used for both the overlay-hide and routing penalty (per 2026-04-23
+// binary simplification).
 export const BAD_SMOOTHNESS = new Set([
   'bad', 'very_bad', 'horrible', 'very_horrible', 'impassable',
-])
-
-// Smoothness values that make a way genuinely unrideable. Overlay hides
-// these entirely; the router still allows them as bridge-walks.
-export const UNRIDEABLE_SMOOTHNESS = new Set([
-  'impassable',
 ])
 
 // Maps road_class string values returned by Valhalla API to a numeric rank.

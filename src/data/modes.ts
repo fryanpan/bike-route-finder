@@ -249,19 +249,22 @@ export type ModeDecision =
   | { accepted: true; speedKmh: number; isWalking: boolean; costMultiplier: number }
   | { accepted: false; reason: string }
 
-// Surfaces that trigger the rough-surface cost multiplier (per mode).
-// Mirrors ALWAYS_BAD_SURFACES in classify.ts — duplicated here to avoid
-// a cross-module import cycle (modes is consumed by classify via
+// Rough surfaces trigger the 5× routing cost multiplier (same surfaces
+// also hidden from the overlay — one list, both consumers). Mirrors
+// UNRIDEABLE_SURFACES in classify.ts; duplicated here to avoid a
+// cross-module import cycle (modes is consumed by classify via
 // clientRouter).
 //
-// Dirt, earth, ground, fine_gravel, compacted, unpaved, and woodchips
-// are NOT penalized — they're common on well-maintained forest paths
-// that ride fine. Per Bryan 2026-04-23: "routing should also allow
-// dirt paths."
+// Per Bryan 2026-04-23: binary rough / not-rough, same for overlay and
+// routing. Cobblestone + sett are in the rough list (carrying-kid +
+// training-scale riders avoid them; kid-scale riders don't want them
+// either). Dirt, earth, ground, fine_gravel, compacted, unpaved,
+// paving_stones, wood, metal all NOT rough — well-maintained forest
+// paths and paving-stone bike paths ride fine.
 const ROUGH_SURFACES = new Set([
-  'cobblestone', 'sett', 'unhewn_cobblestone', 'cobblestone:flattened',
-  'gravel', 'pebblestone',
   'mud', 'sand', 'grass',
+  'gravel', 'pebblestone', 'woodchips',
+  'cobblestone', 'sett', 'unhewn_cobblestone', 'cobblestone:flattened',
 ])
 
 /**

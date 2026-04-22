@@ -1,5 +1,5 @@
 import type { OsmWay } from '../utils/types'
-import { BAD_SURFACES, BAD_SMOOTHNESS, UNRIDEABLE_SURFACES, UNRIDEABLE_SMOOTHNESS, isBadSurface } from '../utils/classify'
+import { BAD_SURFACES, BAD_SMOOTHNESS, UNRIDEABLE_SURFACES } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
 import type { ClassificationRule } from './rules'
 import type { LatLngBounds } from 'leaflet'
@@ -163,33 +163,36 @@ function hasSeparation(tags: Record<string, string>): boolean {
 }
 
 /**
- * Rough-surface check for the ROUTER — profile-aware. Paving_stones are
- * fine for slow kid modes but rough for higher-speed modes, so the
- * router penalises them differently per mode.
+ * Is this way on a rough surface? Binary — the same list is used for
+ * overlay-hide and for the 5× routing cost penalty (per Bryan
+ * 2026-04-23: "let's just have things that are rough or things that
+ * are not rough and have that be consistent for both the overlay and
+ * also for routing"). The `profileKey` parameter is kept for API
+ * stability but no longer affects the result.
+ *
+ * Rough list (hidden + 5×):
+ *   soft/unrideable: mud, sand, grass
+ *   loose/coarse:    gravel, pebblestone, woodchips
+ *   bumpy paved:     cobblestone (+ variants), sett
+ *
+ * Not rough (visible + normal cost):
+ *   asphalt, concrete(+plates/lanes), paved, paving_stones
+ *   compacted, fine_gravel, dirt, earth, ground, unpaved
+ *   wood, metal
  */
-export function isRoughSurface(tags: Record<string, string>, profileKey: string): boolean {
+export function isRoughSurface(tags: Record<string, string>, _profileKey?: string): boolean {
   if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return true
-  if (tags.surface && isBadSurface(tags.surface, profileKey)) return true
+  if (tags.surface && UNRIDEABLE_SURFACES.has(tags.surface)) return true
   return false
 }
 
 /**
- * Surface check for the OVERLAY: hide only surfaces that are genuinely
- * unrideable (mud / sand / grass / smoothness=impassable). Bumpy-but-
- * rideable surfaces like fine_gravel, dirt, gravel, compacted, cobblestone,
- * paving_stones all stay VISIBLE on the map because users want to see
- * these paths — they just might prefer paved alternatives. The router
- * still applies a 5× cost penalty via `isRoughSurface` so bumpy paths
- * don't get picked when there's a better option.
- *
- * (Before 2026-04-23 this hid the full ALWAYS_BAD_SURFACES set, which
- * wrongly removed forest multi-use paths — fine_gravel is the typical
- * surface tag for a wide compacted forest path that's perfectly rideable.)
+ * Alias: overlay hides the same list the router penalises (per the
+ * 2026-04-23 binary rough / not-rough simplification). Kept as a
+ * separate exported name so call sites signal intent clearly.
  */
 export function isOverlayHiddenSurface(tags: Record<string, string>): boolean {
-  if (UNRIDEABLE_SMOOTHNESS.has(tags.smoothness ?? '')) return true
-  if (tags.surface && UNRIDEABLE_SURFACES.has(tags.surface)) return true
-  return false
+  return isRoughSurface(tags)
 }
 
 export function classifyOsmTagsToItem(
