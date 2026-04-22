@@ -2,7 +2,8 @@ import L from 'leaflet'
 import { useEffect, useRef, useMemo, useState } from 'react'
 import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
-import { dashArrayForLevel, colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
+import { colorForLevel } from './SimpleLegend'
+import { useAdminSettings } from '../services/adminSettings'
 import { getVisibleTiles, getCachedTile, latLngToTile, classifyOsmTagsToItem } from '../services/overpass'
 import { getStreetImage } from '../services/mapillary'
 import BikeMapOverlay from './BikeMapOverlay'
@@ -364,6 +365,7 @@ function RouteDisplay({
   onRerouteAround?: (wayIds: number[]) => void
   onFlagSegment?: (seg: RouteSegment) => void
 }) {
+  const settings = useAdminSettings()
   // Selected segment for popup (shared across pre-nav and nav).
   // latlng is the click point; the popup anchors there.
   const [selected, setSelected] = useState<{
@@ -376,8 +378,31 @@ function RouteDisplay({
 
   if (route.segments?.length) {
     const visible = route.segments
+    // Route rendering is a two-layer stack:
+    //   1. ONE continuous white halo polyline that spans the entire route
+    //      (using route.coordinates). A single line means no gaps between
+    //      segments, and no per-segment halo differences to expose white
+    //      seams at tier transitions.
+    //   2. Per-segment colored polylines on top, so each tier can render
+    //      in its own color and carry click-to-reroute affordance.
+    // All segments use the SAME line weight — tier distinction is color
+    // only. Walking segments render solid gray (no dashes) with a tooltip
+    // explaining "walk your bike."
+    const HALO_COLOR = '#ffffff'
+    const HALO_EXTRA = settings.routeHaloExtra
+    const ROUTE_WEIGHT_DEFAULT = settings.routeLineWeight
+    const ROUTE_WEIGHT_SELECTED = settings.routeLineWeightSelected
     return (
       <>
+        {/* Single continuous halo for the whole route. */}
+        <Polyline
+          positions={route.coordinates}
+          color={HALO_COLOR}
+          weight={ROUTE_WEIGHT_DEFAULT + HALO_EXTRA}
+          opacity={1}
+          interactive={false}
+        />
+        {/* Colored layer on top — per-segment so tier colors render. */}
         {visible.map((seg: RouteSegment, i: number) => {
           if (seg.isWalking) {
             return (
@@ -385,9 +410,8 @@ function RouteDisplay({
                 key={i}
                 positions={seg.coordinates}
                 color={WALKING_COLOR}
-                weight={selected?.index === i ? 8 : 7}
-                opacity={0.85}
-                dashArray="8 8"
+                weight={selected?.index === i ? ROUTE_WEIGHT_SELECTED : ROUTE_WEIGHT_DEFAULT}
+                opacity={1}
                 eventHandlers={{
                   click: (e) => {
                     setSelected({ seg, index: i, latlng: [e.latlng.lat, e.latlng.lng] })
@@ -403,25 +427,17 @@ function RouteDisplay({
           const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
           const legendItem = getLegendItem(seg.itemName, profileKey)
           const isSelected = selected?.index === i
-          // Line style + tier color encode the path level (solid=1a,
-          // long-dash=1b, dots=2a), matching the overlay + SimpleLegend
-          // swatches + distribution plot.
-          const dashArray = legendItem ? dashArrayForLevel(legendItem.level) : undefined
           const color = legendItem && isPreferred
-            ? colorForLevel(legendItem.level)
+            ? colorForLevel(legendItem.level, settings.tiers)
             : isPreferred ? PREFERRED_COLOR : OTHER_COLOR
-          const baseWeight = isSelected ? 9 : 8
-          const weight = legendItem
-            ? Math.max(3, Math.round(baseWeight * weightMultiplierForLevel(legendItem.level)))
-            : baseWeight
+          const weight = isSelected ? ROUTE_WEIGHT_SELECTED : ROUTE_WEIGHT_DEFAULT
           return (
             <Polyline
               key={i}
               positions={seg.coordinates}
               color={color}
               weight={weight}
-              opacity={isSelected ? 1 : 0.95}
-              dashArray={dashArray}
+              opacity={1}
               eventHandlers={{
                 click: (e) => {
                   setSelected({ seg, index: i, latlng: [e.latlng.lat, e.latlng.lng] })

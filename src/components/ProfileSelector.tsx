@@ -6,6 +6,7 @@ import {
   CarryingKid,
   Training,
 } from './icons/modes'
+import { useAdminSettings } from '../services/adminSettings'
 
 // Custom SVG icons for each ride mode. Landscape-aspect line-art bikes
 // drawn to read as bikes at small icon sizes (~22px tall). Each icon
@@ -36,10 +37,18 @@ interface Props {
 }
 
 export default function ProfileSelector({ profiles, selected, onSelect, isCustomTravelMode }: Props) {
+  const settings = useAdminSettings()
+  // Training mode is hidden unless the user opts in via Admin Tools →
+  // Settings. If the current selected profile is training, keep it in
+  // the list (the user must have enabled it previously, then disabled
+  // the toggle — don't silently drop the active mode).
+  const visibleEntries = Object.entries(profiles).filter(([key]) =>
+    key !== 'training' || settings.showTrainingMode || key === selected,
+  )
   return (
     <div className="profile-selector">
       <div className="profile-chips">
-        {Object.entries(profiles).map(([key, profile]) => (
+        {visibleEntries.map(([key, profile]) => (
           <button
             key={key}
             className={`profile-chip${selected === key && !isCustomTravelMode ? ' selected' : ''}`}

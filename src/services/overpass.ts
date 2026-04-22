@@ -163,14 +163,28 @@ function hasSeparation(tags: Record<string, string>): boolean {
 }
 
 /**
- * Rough-surface check — orthogonal to the infrastructure type. A rough
- * bike path is still a bike path (level 1a); the roughness is a separate
- * signal the router penalises with a 5× multiplier and the overlay hides
- * entirely. See docs/product/path-types-reference.md §Rough-surface override.
+ * Rough-surface check for the ROUTER — profile-aware. Paving_stones are
+ * fine for slow kid modes but rough for higher-speed modes, so the
+ * router penalises them differently per mode.
  */
 export function isRoughSurface(tags: Record<string, string>, profileKey: string): boolean {
   if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return true
   if (tags.surface && isBadSurface(tags.surface, profileKey)) return true
+  return false
+}
+
+/**
+ * Rough-surface check for the OVERLAY (mode-independent). Only hides
+ * universally-bad surfaces — cobblestone, gravel, dirt, etc. Paving_stones
+ * (Berlin's standard bike-path material) are visible on every mode so
+ * toggling up in kid-skill never removes infrastructure from the map.
+ * Monotonic-visibility invariant per docs/process/learnings.md.
+ */
+export function isOverlayHiddenSurface(tags: Record<string, string>): boolean {
+  if (BAD_SMOOTHNESS.has(tags.smoothness ?? '')) return true
+  // Any mode's "always bad" set is a subset of kid-starting-out's —
+  // delegate to kid-starting-out which only flags ALWAYS_BAD_SURFACES.
+  if (tags.surface && isBadSurface(tags.surface, 'kid-starting-out')) return true
   return false
 }
 

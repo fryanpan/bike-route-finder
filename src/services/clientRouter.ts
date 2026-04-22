@@ -18,7 +18,9 @@ import {
 } from './overpass'
 import { buildSegments, healSegmentGaps } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
-import { MODE_RULES, applyModeRule } from '../data/modes'
+import { MODE_RULES, applyModeRule, getEffectiveModeRule } from '../data/modes'
+import { loadSettings } from './adminSettings'
+import type { AdminSettings } from './adminSettings'
 import type { RideMode } from '../data/modes'
 import type { OsmWay, Route, RouteSegment } from '../utils/types'
 import type { ClassificationRule } from './rules'
@@ -100,8 +102,10 @@ function coordId(lat: number, lng: number): string {
 // traffic and often have no sidewalk — you genuinely can't walk them.
 // These stay hard-rejected.
 
-function resolveRule(profileKey: string) {
-  return MODE_RULES[profileKey as RideMode] ?? MODE_RULES['kid-starting-out']
+function resolveRule(profileKey: string, settings?: AdminSettings) {
+  const mode = (MODE_RULES[profileKey as RideMode] ? profileKey : 'kid-starting-out') as RideMode
+  const s = settings ?? loadSettings()
+  return getEffectiveModeRule(mode, s)
 }
 
 // ── Graph builder ──────────────────────────────────────────────────────────
@@ -192,9 +196,10 @@ export function buildRoutingGraph(
   regionProfile?: RegionProfile | null,
   avoidedWayIds?: Set<number> | null,
   riderPreference?: RiderPreference | null,
+  settings?: AdminSettings,
 ): Graph<NodeData, EdgeData> {
   const graph = createGraph<NodeData, EdgeData>()
-  const rule = resolveRule(profileKey)
+  const rule = resolveRule(profileKey, settings)
 
   for (const way of ways) {
     const coords = way.coordinates
@@ -574,6 +579,7 @@ export async function clientRoute(
   regionProfile?: RegionProfile | null,
   avoidedWayIds?: Set<number> | null,
   riderPreference?: RiderPreference | null,
+  settings?: AdminSettings,
 ): Promise<Route | null> {
   // Collect ways from cached tiles covering the corridor
   const tiles = getTilesForCorridor(startLat, startLng, endLat, endLng)
@@ -594,7 +600,7 @@ export async function clientRoute(
 
   if (allWays.length === 0) return null
 
-  const graph = buildRoutingGraph(allWays, profileKey, preferredItemNames, regionRules, regionProfile, avoidedWayIds, riderPreference)
+  const graph = buildRoutingGraph(allWays, profileKey, preferredItemNames, regionRules, regionProfile, avoidedWayIds, riderPreference, settings)
   const result = routeOnGraph(
     graph, startLat, startLng, endLat, endLng,
     profileKey, preferredItemNames, regionRules,

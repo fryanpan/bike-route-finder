@@ -274,6 +274,47 @@ const ROUGH_SURFACES = new Set([
  * adds the edge to the graph as a bridge-walk at `walkingSpeedKmh`. Hard
  * rejection is reserved for motorway/trunk and `sidewalk=no` elsewhere.
  */
+/**
+ * Return a ModeRule with runtime overrides (from adminSettings) merged in.
+ * Any field not overridden falls back to the compile-time MODE_RULES
+ * default. Used by the router so the Admin Tools → Settings → Routing
+ * sliders take effect without rebuilding the app.
+ */
+export function getEffectiveModeRule(
+  mode: RideMode,
+  overrides?: {
+    modeRouting?: Partial<Record<RideMode, {
+      ridingSpeedKmh?: number
+      slowSpeedKmh?: number
+      walkingSpeedKmh?: number
+      levelMultipliers?: Partial<Record<PathLevel, number>>
+      roughSurfaceMultiplier?: number
+    }>>
+    roughSurfaceMultiplierGlobal?: number
+  },
+): ModeRule {
+  const base = MODE_RULES[mode]
+  const modeOverride = overrides?.modeRouting?.[mode]
+  const globalRough = overrides?.roughSurfaceMultiplierGlobal
+
+  if (!modeOverride && globalRough === undefined) return base
+
+  return {
+    ...base,
+    ridingSpeedKmh: modeOverride?.ridingSpeedKmh ?? base.ridingSpeedKmh,
+    slowSpeedKmh: modeOverride?.slowSpeedKmh ?? base.slowSpeedKmh,
+    walkingSpeedKmh: modeOverride?.walkingSpeedKmh ?? base.walkingSpeedKmh,
+    levelMultipliers: modeOverride?.levelMultipliers
+      ? { ...(base.levelMultipliers ?? {}), ...modeOverride.levelMultipliers }
+      : base.levelMultipliers,
+    // Per-mode override wins if present; else global override if present; else mode default.
+    roughSurfaceMultiplier:
+      modeOverride?.roughSurfaceMultiplier
+      ?? globalRough
+      ?? base.roughSurfaceMultiplier,
+  }
+}
+
 export function applyModeRule(
   rule: ModeRule,
   classification: LtsClassification,

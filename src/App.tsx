@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react'
 import { useGeolocation } from './hooks/useGeolocation'
 const Map = lazy(() => import('./components/Map'))
-const AuditPanel = lazy(() => import('./components/AuditPanel'))
+const AdminPanel = lazy(() => import('./components/AdminPanel'))
 import SimpleLegend from './components/SimpleLegend'
 import SearchBar from './components/SearchBar'
 import type { QuickOption } from './components/SearchBar'
@@ -872,7 +872,7 @@ export default function App() {
 
       {auditOpen && (
         <Suspense fallback={null}>
-          <AuditPanel onClose={() => {
+          <AdminPanel onClose={() => {
             setAuditOpen(false)
             const params = new URLSearchParams(window.location.search)
             params.delete('admin')

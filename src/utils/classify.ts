@@ -79,7 +79,9 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     ]},
   ],
 
-  // LTS 1a-2b preferred. 2a and 2b cost 1.5× of 1a/1b in the router.
+  // Legend-preferred: 1a/1b/2a only. Router ALSO accepts 2b with a 1.5×
+  // cost multiplier (see MODE_RULES), but 2b stays off the legend unless
+  // the user opts in via adminSettings.showNonPreferredInLegend.
   'kid-traffic-savvy': [
     { defaultPreferred: true, items: [
       { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
@@ -94,16 +96,16 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     { defaultPreferred: true, items: [
       { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
       { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
-      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
     ]},
     { defaultPreferred: false, items: [
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: false, level: '2b' },
       { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3' },
       { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3' },
     ]},
   ],
 
-  // LTS 1a-2b preferred. 2a/2b cost 1.2×. LTS 3 rejected — most
-  // carrying-kid riders avoid higher-traffic infra even when accepted.
+  // Legend-preferred: 1a/1b/2a. Router accepts 2b at 1.2× cost; LTS 3
+  // rejected entirely. 2b stays off the legend unless opted in.
   'carrying-kid': [
     { defaultPreferred: true, items: [
       { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
@@ -117,16 +119,18 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     { defaultPreferred: true, items: [
       { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
       { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
-      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: false, level: '1a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: false, level: '2b' },
       { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3' },
       { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3' },
     ]},
   ],
 
-  // Adult fitness. LTS 1a-3 at full cost. Elevated sidewalk paths omitted.
+  // Legend-preferred: 1a/1b/2a. Router accepts 2b + 3 too (adult fitness
+  // fleets ride them at full speed), but legend stays focused on bike-
+  // infra tiers unless opted in.
   training: [
     { defaultPreferred: true, items: [
       { icon: '🚴', name: 'Bike path',                   defaultPreferred: true, level: '1a' },
@@ -140,14 +144,56 @@ export const PROFILE_LEGEND: Record<string, LegendGroup[]> = {
     { defaultPreferred: true, items: [
       { icon: '〰️', name: 'Painted bike lane on quiet street', defaultPreferred: true, level: '2a' },
       { icon: '🚌', name: 'Shared bus lane on quiet street',    defaultPreferred: true, level: '2a' },
-      { icon: '🏠', name: 'Quiet street',                defaultPreferred: true, level: '2b' },
-      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: true, level: '3' },
-      { icon: '🛣️', name: 'Major road',                  defaultPreferred: true, level: '3' },
     ]},
     { defaultPreferred: false, items: [
       { icon: '🛡️', name: 'Elevated sidewalk path',      defaultPreferred: false, level: '1a' },
+      { icon: '🏠', name: 'Quiet street',                defaultPreferred: false, level: '2b' },
+      { icon: '🛣️', name: 'Painted bike lane on major road',   defaultPreferred: false, level: '3' },
+      { icon: '🛣️', name: 'Major road',                  defaultPreferred: false, level: '3' },
     ]},
   ],
+}
+
+// Tiers that the user can toggle into the preferred legend via
+// adminSettings.showNonPreferredInLegend. 2b and 3 are "accepted for
+// routing but not displayed as preferred" by default for the affected
+// modes; this switch promotes them into the preferred set for display.
+// Routing acceptance is driven by MODE_RULES.acceptedLevels and is
+// independent of this flag.
+export const OPTIONAL_PREFERRED_LEVELS: ReadonlySet<PathLevel> = new Set(['2b', '3'])
+
+/**
+ * Return the effective PROFILE_LEGEND for a profile, optionally with 2b/3
+ * items promoted from non-preferred to preferred. Used by the legend + by
+ * overlay/route display logic to keep the "what's preferred" view in sync
+ * with adminSettings.
+ */
+export function getEffectiveProfileLegend(
+  profileKey: string,
+  showNonPreferredInLegend: boolean,
+): LegendGroup[] {
+  const groups = PROFILE_LEGEND[profileKey] ?? []
+  if (!showNonPreferredInLegend) return groups
+  // Promote 2b / 3 items from any non-preferred group into a new preferred
+  // group. The item's own defaultPreferred is flipped to true so downstream
+  // preferredItemNames derivation picks them up.
+  const preferred: LegendItem[] = []
+  const nonPreferred: LegendItem[] = []
+  for (const g of groups) {
+    for (const it of g.items) {
+      if (g.defaultPreferred) {
+        preferred.push(it)
+      } else if (OPTIONAL_PREFERRED_LEVELS.has(it.level)) {
+        preferred.push({ ...it, defaultPreferred: true })
+      } else {
+        nonPreferred.push(it)
+      }
+    }
+  }
+  const out: LegendGroup[] = []
+  if (preferred.length) out.push({ defaultPreferred: true, items: preferred })
+  if (nonPreferred.length) out.push({ defaultPreferred: false, items: nonPreferred })
+  return out
 }
 
 // ── Route quality stats ─────────────────────────────────────────────────────
@@ -245,9 +291,16 @@ export function healSegmentGaps(
 
 /**
  * Returns the set of item names that are preferred by default for a profile.
+ * Pass `showNonPreferred=true` to promote the optional 2b / 3 items into the
+ * preferred set (user opt-in via adminSettings).
  */
-export function getDefaultPreferredItems(profileKey: string): Set<string> {
-  const groups = PROFILE_LEGEND[profileKey]
+export function getDefaultPreferredItems(
+  profileKey: string,
+  showNonPreferred: boolean = false,
+): Set<string> {
+  const groups = showNonPreferred
+    ? getEffectiveProfileLegend(profileKey, true)
+    : PROFILE_LEGEND[profileKey]
   if (!groups) return new Set()
   const names = new Set<string>()
   for (const group of groups) {

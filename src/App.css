@@ -574,12 +574,172 @@ button { font-family: inherit; cursor: pointer; }
 .qb-preferred { background: #22c55e; }
 .qb-other     { background: #fb923c; }
 .quality-labels {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0 0;
   display: flex;
-  gap: 12px;
-  margin-top: 4px;
+  flex-direction: column;
+  gap: 2px;
 }
-.ql-preferred { font-size: 11px; color: #047857; font-weight: 600; }
-.ql-other     { font-size: 11px; color: #c2410c; font-weight: 600; }
+.ql-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.ql-dot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.ql-pct { font-weight: 700; min-width: 34px; }
+.ql-label { color: #374151; }
+.ql-walking { color: #6b7280; }
+.ql-other { color: #c2410c; }
+
+/* ── Admin Tools → Settings tab ─────────────────────────────────────────── */
+.admin-settings {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  font-size: 14px;
+}
+.admin-section {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.admin-section:last-child { border-bottom: none; }
+.admin-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #111827;
+}
+.admin-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  color: #374151;
+}
+.admin-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.admin-toggle-row input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.admin-hint {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 400;
+}
+.admin-tier-table,
+.admin-mapping-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 4px 0;
+}
+.admin-tier-table th,
+.admin-tier-table td,
+.admin-mapping-table th,
+.admin-mapping-table td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+.admin-tier-table th,
+.admin-mapping-table th {
+  font-weight: 600;
+  color: #374151;
+  background: #f9fafb;
+}
+.admin-mapping-table code {
+  font-size: 12px;
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.admin-input {
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+}
+.admin-num-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.admin-num-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #374151;
+}
+.admin-num-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  max-width: 280px;
+}
+.admin-details { margin-top: 8px; }
+.admin-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #2563eb;
+  padding: 4px 0;
+}
+.admin-mode-block {
+  padding: 8px 0;
+  border-top: 1px solid #f3f4f6;
+}
+.audit-tabs-outer {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.btn-secondary {
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #374151;
+}
+.btn-secondary:hover { background: #f9fafb; }
+
+/* Segment text labels drawn along the route. White text-shadow halo so
+   they stay readable over any map background. */
+.seg-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow:
+    -1px -1px 0 #fff,
+     1px -1px 0 #fff,
+    -1px  1px 0 #fff,
+     1px  1px 0 #fff,
+     0   -1px 0 #fff,
+     0    1px 0 #fff,
+    -1px  0   0 #fff,
+     1px  0   0 #fff;
+}
 
 .start-nav-btn {
   display: block;

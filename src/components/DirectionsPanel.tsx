@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { formatDistance, formatDuration } from '../utils/format'
 import { computeRouteQuality } from '../utils/classify'
-import { SIMPLE_TIERS } from './SimpleLegend'
+import { SIMPLE_TIERS, colorForLevel } from './SimpleLegend'
+import { useAdminSettings } from '../services/adminSettings'
 import SegmentFeedback from './SegmentFeedback'
 import type { Route, ValhallaManeuver, LatLng } from '../utils/types'
 
@@ -68,6 +69,7 @@ interface Props {
 }
 
 export default function DirectionsPanel({ route, onClose, preferredItemNames, currentLocation, travelMode, compact }: Props) {
+  const settings = useAdminSettings()
   const [navigating, setNavigating] = useState(false)
   const [step, setStep] = useState(0)
   const [turnsExpanded, setTurnsExpanded] = useState(false)
@@ -191,7 +193,7 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
                 <div
                   key={tier.level}
                   className="qb-segment"
-                  style={{ flex: frac, background: tier.color }}
+                  style={{ flex: frac, background: colorForLevel(tier.level, settings.tiers) }}
                   title={`${Math.round(frac * 100)}% ${tier.title}`}
                 />
               )
@@ -203,23 +205,33 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
               <div className="qb-segment qb-other" style={{ flex: quality.other }} title={`${Math.round(quality.other * 100)}% other`} />
             )}
           </div>
-          <div className="quality-labels">
+          <ul className="quality-labels">
             {SIMPLE_TIERS.map((tier) => {
               const frac = quality.byLevel[tier.level] ?? 0
               if (frac <= 0.05) return null
               return (
-                <span key={tier.level} className="ql-tier" style={{ color: tier.color }}>
-                  {Math.round(frac * 100)}% {tier.title.toLowerCase()}
-                </span>
+                <li key={tier.level} className="ql-row">
+                  <span className="ql-dot" style={{ background: colorForLevel(tier.level, settings.tiers) }} />
+                  <span className="ql-pct" style={{ color: colorForLevel(tier.level, settings.tiers) }}>{Math.round(frac * 100)}%</span>
+                  <span className="ql-label">{tier.title.toLowerCase()}</span>
+                </li>
               )
             })}
             {quality.walking > 0.05 && (
-              <span className="ql-walking">{Math.round(quality.walking * 100)}% walking</span>
+              <li className="ql-row">
+                <span className="ql-dot" style={{ background: '#6b7280' }} />
+                <span className="ql-pct ql-walking">{Math.round(quality.walking * 100)}%</span>
+                <span className="ql-label">walking</span>
+              </li>
             )}
             {quality.other > 0.05 && (
-              <span className="ql-other">{Math.round(quality.other * 100)}% other</span>
+              <li className="ql-row">
+                <span className="ql-dot" style={{ background: '#f97316' }} />
+                <span className="ql-pct ql-other">{Math.round(quality.other * 100)}%</span>
+                <span className="ql-label">other</span>
+              </li>
             )}
-          </div>
+          </ul>
         </div>
       )}
 

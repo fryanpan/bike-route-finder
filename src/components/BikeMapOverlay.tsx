@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem, isRoughSurface } from '../services/overpass'
+import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem, isOverlayHiddenSurface } from '../services/overpass'
 import { PREFERRED_COLOR, OTHER_COLOR, PROFILE_LEGEND } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
 import type { PathLevel } from '../utils/lts'
-import { dashArrayForLevel, colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
+import { colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
+import { useAdminSettings } from '../services/adminSettings'
 import { getStreetImage } from '../services/mapillary'
 import type { ClassificationRule } from '../services/rules'
 import type { OsmWay } from '../utils/types'
@@ -83,6 +84,7 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
 }) {
   const map = useMap()
   const lgRef = useRef<L.LayerGroup | null>(null)
+  const settings = useAdminSettings()
 
   // Mount: create layer group and add to map. Unmount: remove it.
   useEffect(() => {
@@ -102,9 +104,12 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
 
     lg.clearLayers()
 
-    // Reduce overlay line weight when a route is shown so the route stands out.
-    // Minimum 3 even with route — thinner lines are untappable on mobile.
-    const overlayWeight = hasRoute ? 3 : 4
+    // Base browsing weight (thinner when a route is drawn so the route
+    // polyline clearly dominates). Bike-infra tiers (1a/1b/2a) get
+    // scaled less when a route is drawn so nearby alternatives stay
+    // readable — the shared-road tiers (2b/3) fade harder.
+    const BROWSING_WEIGHT = 4
+    const overlayWeight = BROWSING_WEIGHT
 
     // Build the set of path levels that are preferred for the current mode.
     // The overlay renders only these levels (plus non-preferred if
@@ -117,32 +122,84 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
       for (const item of group.items) preferredLevels.add(item.level)
     }
 
+    // Precompute per-way data so we can render in two passes: ALL halos
+    // first, THEN all colored polylines. This matters because ways share
+    // coordinates at junctions — if we render halo+color per-way inline,
+    // the next way's halo overlaps the prior way's color at shared nodes
+    // and creates visible white seams between adjacent path segments.
+    interface RenderedWay {
+      way: OsmWay
+      pathLevel: PathLevel
+      color: string
+      weight: number
+      opacity: number
+      itemName: string | null
+      isPreferred: boolean
+      drawHalo: boolean
+    }
+    const toRender: RenderedWay[] = []
     for (const way of ways) {
-      // pathLevel is structural (from classifyEdge) and stable across modes.
       const { pathLevel } = classifyEdge(way.tags)
-      if (pathLevel === '4') continue // non-rideable
-
-      // Rough-surface ways are hidden from the overlay but stay in the
-      // routing graph (router applies 5× penalty). This keeps the discovery
-      // view focused on paths you'd actually enjoy riding.
-      if (isRoughSurface(way.tags, profileKey)) continue
-
+      if (pathLevel === '4') continue
+      // Mode-independent overlay-hide: only universally-bad surfaces
+      // (cobblestone / gravel / dirt / bad smoothness) hide. Profile-
+      // dependent roughness (e.g. paving_stones at higher-speed modes)
+      // stays visible so the map doesn't shed infrastructure when the
+      // user toggles up in kid-skill. The router still penalises the
+      // latter with a 5× cost multiplier via applyModeRule.
+      if (isOverlayHiddenSurface(way.tags)) continue
       const isLevelPreferred = preferredLevels.has(pathLevel)
       if (!isLevelPreferred && !showOtherPaths) continue
 
       const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
       const isPreferred = itemName !== null && preferredItemNames.has(itemName)
+      const color = isLevelPreferred ? colorForLevel(pathLevel, settings.tiers) : OTHER_COLOR
 
-      // Color: tier green if the level is preferred, orange if shown as "other."
-      const color = isLevelPreferred ? colorForLevel(pathLevel) : OTHER_COLOR
-      const dashArray = dashArrayForLevel(pathLevel)
-      const weight = Math.max(2, Math.round(overlayWeight * weightMultiplierForLevel(pathLevel)))
+      // Bike-infra tiers (1a/1b/2a) stay halo'd + mostly readable when a
+      // route is drawn — nearby alternatives should still be followable.
+      // Shared-road tiers (2b/3) fade harder so the route dominates.
+      const isBikeInfraTier = pathLevel === '1a' || pathLevel === '1b' || pathLevel === '2a'
+      const browsingWeight = overlayWeight * weightMultiplierForLevel(pathLevel, settings.tiers)
+      const weightScaled = hasRoute && isBikeInfraTier
+        ? browsingWeight * 0.8
+        : hasRoute
+          ? browsingWeight * 0.75  // non-bike-infra tiers thin out more when routing
+          : browsingWeight
+      const weight = Math.max(2, Math.round(weightScaled))
+      const opacity = hasRoute && isBikeInfraTier
+        ? settings.overlayOpacityBrowsing * 0.8
+        : hasRoute
+          ? settings.overlayOpacityWithRoute
+          : settings.overlayOpacityBrowsing
+      // Halo on bike-infra tiers in ALL modes (browse AND route-drawn)
+      // so nearby bike-infra stays legible even when a route is active.
+      // 2b / 3 skip the halo — they're shared-with-cars tiers that
+      // shouldn't read as highlighted bike infrastructure.
+      const drawHalo = isBikeInfraTier
 
+      toRender.push({ way, pathLevel, color, weight, opacity, itemName, isPreferred, drawHalo })
+    }
+
+    // Pass 1: all halos.
+    for (const r of toRender) {
+      if (!r.drawHalo) continue
+      const halo = L.polyline(r.way.coordinates, {
+        color: '#ffffff',
+        weight: r.weight + settings.overlayHaloExtra,
+        opacity: r.opacity, // halo fades with the line so it doesn't shout over the route
+        renderer: canvasRenderer,
+        interactive: false,
+      })
+      lg.addLayer(halo)
+    }
+
+    // Pass 2: colored polylines.
+    for (const r of toRender) {
+      const { way, color, weight, opacity, itemName, isPreferred } = r
       const polyline = L.polyline(way.coordinates, {
         color,
         weight,
-        opacity: 1.0,
-        dashArray,
+        opacity,
         renderer: canvasRenderer,
       })
 
@@ -170,7 +227,7 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
 
       polyline.addTo(lg)
     }
-  }, [ways, profileKey, preferredItemNames, showOtherPaths, hasRoute, regionRules])
+  }, [ways, profileKey, preferredItemNames, showOtherPaths, hasRoute, regionRules, settings])
 
   return null
 }

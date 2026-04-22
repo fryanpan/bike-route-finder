@@ -192,32 +192,38 @@ describe('getDefaultPreferredItems', () => {
     expect(items.has('Quiet street')).toBe(false)
   })
 
-  it('adds painted lanes AND quiet residentials for kid-traffic-savvy', () => {
+  it('kid-traffic-savvy: 1a/1b/2a preferred in legend; 2b accepted for routing but NOT preferred', () => {
     const items = getDefaultPreferredItems('kid-traffic-savvy')
     expect(items.has('Painted bike lane on quiet street')).toBe(true)
     expect(items.has('Shared bus lane on quiet street')).toBe(true)
     expect(items.has('Bike boulevard')).toBe(true)
     expect(items.has('Living street')).toBe(true)
-    expect(items.has('Quiet street')).toBe(true) // 2b preferred per Apr 2026 spec
+    expect(items.has('Quiet street')).toBe(false) // 2b accepted for routing, not preferred in legend
     expect(items.has('Major road')).toBe(false)
   })
 
-  it('carrying-kid accepts LTS 1a-2b but NOT LTS 3 (most riders avoid higher-traffic infra)', () => {
+  it('kid-traffic-savvy: opt-in flips 2b into preferred legend', () => {
+    const items = getDefaultPreferredItems('kid-traffic-savvy', true)
+    expect(items.has('Quiet street')).toBe(true)
+  })
+
+  it('carrying-kid: 1a/1b/2a preferred; 2b accepted for routing but not preferred; LTS 3 off', () => {
     const items = getDefaultPreferredItems('carrying-kid')
     expect(items.has('Bike path')).toBe(true)
     expect(items.has('Painted bike lane on quiet street')).toBe(true)
-    expect(items.has('Quiet street')).toBe(true)
-    expect(items.has('Painted bike lane on major road')).toBe(false) // LTS 3 off
-    expect(items.has('Major road')).toBe(false)                      // LTS 3 off
-    expect(items.has('Elevated sidewalk path')).toBe(false)          // opted out for carrying-kid
+    expect(items.has('Quiet street')).toBe(false) // 2b accepted, not preferred
+    expect(items.has('Painted bike lane on major road')).toBe(false) // LTS 3 rejected
+    expect(items.has('Major road')).toBe(false)
+    expect(items.has('Elevated sidewalk path')).toBe(false)
   })
 
-  it('returns defaultPreferred items for training profile', () => {
+  it('training: 1a/1b/2a preferred in legend; 2b + 3 accepted for routing but not preferred', () => {
     const items = getDefaultPreferredItems('training')
     expect(items.has('Bike path')).toBe(true)
     expect(items.has('Painted bike lane on quiet street')).toBe(true)
     expect(items.has('Living street')).toBe(true)
-    expect(items.has('Major road')).toBe(true)
+    expect(items.has('Quiet street')).toBe(false)
+    expect(items.has('Major road')).toBe(false)
     expect(items.has('Elevated sidewalk path')).toBe(false)
   })
 
