@@ -1,7 +1,7 @@
 /**
  * Unified Cloudflare Worker for Berlin Bike Route Finder
  *
- * Handles API routes (Valhalla proxy, Nominatim proxy, feedback → Linear).
+ * Handles API routes (Valhalla proxy, Nominatim proxy, etc.).
  * Static assets are served automatically by the [assets] binding for non-API paths.
  *
  * Routes:
@@ -10,7 +10,6 @@
  *   /api/overpass     → proxy to overpass-api.de with 30-day edge cache
  *   /api/mapillary/*  → proxy to graph.mapillary.com with server-injected
  *                       token + 7-day edge cache
- *   POST /api/feedback → create a Linear issue from user feedback
  */
 
 // Cloudflare Workers extends the standard CacheStorage interface with a `default`
@@ -35,10 +34,6 @@ interface D1PreparedStatement {
 }
 
 type Env = {
-  LINEAR_API_KEY?: string
-  LINEAR_TEAM_ID?: string
-  LINEAR_PROJECT_ID?: string
-  LINEAR_ASSIGNEE_ID?: string
   MAPILLARY_TOKEN?: string
   CLASSIFICATION_RULES: KVNamespace
   ROUTE_LOGS: D1Database
@@ -250,11 +245,6 @@ export default {
       return handleSegmentFeedback(request)
     }
 
-    // ── Feedback → Linear ─────────────────────────────────────────────
-    if (path === '/api/feedback' && request.method === 'POST') {
-      return handleFeedback(request, env)
-    }
-
     // ── Classification rules (KV-backed) ──────────────────────────────
     const rulesMatch = path.match(/^\/api\/rules\/([a-zA-Z0-9_-]+)$/)
     if (rulesMatch) {
@@ -328,132 +318,6 @@ export default {
     // ── All other paths: serve static assets via [assets] binding ─────
     return env.ASSETS.fetch(request)
   },
-}
-
-async function handleFeedback(request: Request, env: Env): Promise<Response> {
-  const apiKey = env.LINEAR_API_KEY
-  const teamId = env.LINEAR_TEAM_ID
-  const projectId = env.LINEAR_PROJECT_ID
-  const assigneeId = env.LINEAR_ASSIGNEE_ID
-
-  let body: Record<string, unknown>
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-
-  const { author, text, annotations, pageUrl } = body
-
-  const hasText = typeof text === 'string' && text.trim().length > 0
-  const hasAnnotations = Array.isArray(annotations) && annotations.length > 0
-  if (!hasText && !hasAnnotations) {
-    return Response.json({ error: 'Feedback must include text or annotations' }, { status: 400 })
-  }
-
-  // ── Always persist to KV so no feedback is lost if Linear is down or
-  //    unconfigured. Key format: feedback:<iso-timestamp>:<rand>. Bryan can
-  //    read the KV from the Cloudflare dashboard or via `wrangler kv:key list`.
-  const kvKey = `feedback:${new Date().toISOString()}:${crypto.randomUUID()}`
-  const kvValue = JSON.stringify({
-    author: typeof author === 'string' ? author : null,
-    text: typeof text === 'string' ? text : null,
-    annotations: hasAnnotations ? annotations : null,
-    pageUrl: typeof pageUrl === 'string' ? pageUrl : null,
-    ts: Date.now(),
-  })
-  try {
-    await env.CLASSIFICATION_RULES.put(kvKey, kvValue)
-  } catch (err) {
-    // Don't fail the request — Linear attempt below is the primary path.
-    console.error('[Feedback] KV fallback write failed:', err)
-  }
-
-  // ── If Linear isn't configured, still return success — the feedback
-  //    survives in KV.
-  if (!apiKey || !teamId || !projectId) {
-    console.warn('[Feedback] Linear env vars not configured — feedback saved to KV only')
-    return Response.json({ status: 'kv-only', kvKey }, { status: 201 })
-  }
-
-  // Build Linear ticket description
-  let description = ''
-  if (typeof text === 'string' && text.trim()) {
-    description += text.trim() + '\n\n'
-  }
-  if (hasAnnotations) {
-    description += '## Annotations\n\n'
-    ;(annotations as Array<{ id: number; selector?: string; text: string }>).forEach((ann) => {
-      description += `**${ann.id}.** ${ann.selector ? `\`${ann.selector}\`` : ''}\n${ann.text}\n\n`
-    })
-  }
-  if (typeof pageUrl === 'string') {
-    description += `\n**Page:** ${pageUrl}\n`
-  }
-  description += `\n**Submitted by:** ${typeof author === 'string' ? author : 'Anonymous'}`
-
-  const title =
-    typeof text === 'string' && text.trim()
-      ? text.trim().split('\n')[0].substring(0, 80)
-      : 'Feedback from Bike Route Finder'
-
-  try {
-    const resp = await fetch('https://api.linear.app/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: apiKey },
-      body: JSON.stringify({
-        query: `
-          mutation CreateIssue($input: IssueCreateInput!) {
-            issueCreate(input: $input) {
-              success
-              issue { id identifier url }
-            }
-          }
-        `,
-        variables: {
-          input: {
-            title,
-            description,
-            teamId,
-            projectId,
-            ...(assigneeId ? { assigneeId } : {}),
-          },
-        },
-      }),
-    })
-
-    if (!resp.ok) {
-      const err = await resp.text()
-      console.error('[Feedback] Linear error:', resp.status, err)
-      // KV already captured it — still report success to the user.
-      return Response.json({ status: 'kv-only', kvKey, linearError: true }, { status: 201 })
-    }
-
-    const result = (await resp.json()) as {
-      data?: {
-        issueCreate: {
-          success: boolean
-          issue?: { id: string; identifier: string; url: string }
-        }
-      }
-      errors?: Array<{ message: string }>
-    }
-
-    if (result.errors || !result.data?.issueCreate.success) {
-      console.error('[Feedback] Linear mutation failed:', result.errors)
-      return Response.json({ status: 'kv-only', kvKey, linearError: true }, { status: 201 })
-    }
-
-    const issue = result.data.issueCreate.issue!
-    return Response.json(
-      { id: issue.id, identifier: issue.identifier, url: issue.url, status: 'created', kvKey },
-      { status: 201 },
-    )
-  } catch (err) {
-    console.error('[Feedback] Error:', err)
-    // KV already captured it — still report success.
-    return Response.json({ status: 'kv-only', kvKey, linearError: true }, { status: 201 })
-  }
 }
 
 /**
