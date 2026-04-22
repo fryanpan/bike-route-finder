@@ -118,6 +118,17 @@ export default function AdminSettingsTab() {
             <span className="admin-hint"> (default off)</span>
           </span>
         </label>
+        <label className="admin-toggle-row">
+          <input
+            type="checkbox"
+            checked={settings.showExternalRouterLinks}
+            onChange={(e) => update('showExternalRouterLinks', e.target.checked)}
+          />
+          <span>
+            Show <em>Compare on BRouter / Valhalla</em> links in the route panel
+            <span className="admin-hint"> (benchmark sanity-check — default off)</span>
+          </span>
+        </label>
       </section>
 
       {/* ── Formatting: per-tier color + weight ────────────────────── */}

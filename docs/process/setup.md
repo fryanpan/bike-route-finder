@@ -65,12 +65,8 @@ This builds the frontend and deploys both the Worker and static assets in a sing
 Set these once (or when rotating) via `wrangler secret put`:
 
 ```bash
-npx wrangler secret put LINEAR_API_KEY       # Linear personal API key
-npx wrangler secret put LINEAR_TEAM_ID       # Linear team ID (from team settings URL)
-npx wrangler secret put LINEAR_PROJECT_ID    # Linear project ID
+npx wrangler secret put MAPILLARY_TOKEN      # Mapillary API token (proxied server-side)
 ```
-
-To find Linear IDs: open Linear, go to team/project settings, and copy the UUID from the URL.
 
 ### GitHub Actions (automated CI/CD)
 
@@ -83,7 +79,7 @@ Add these secrets in **GitHub repo > Settings > Secrets and variables > Actions*
 | `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard > My Profile > API Tokens > Create Token > "Edit Cloudflare Workers" template |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard > Workers & Pages > Account ID (right sidebar) |
 
-No other secrets are needed in GitHub Actions. The Worker secrets (`LINEAR_API_KEY`, etc.) are set directly on Cloudflare via `wrangler secret put` and persist across deploys.
+No other secrets are needed in GitHub Actions. Worker secrets are set directly on Cloudflare via `wrangler secret put` and persist across deploys.
 
 ### Custom domain
 
