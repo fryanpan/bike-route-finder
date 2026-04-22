@@ -249,7 +249,7 @@ export default function App() {
     }
   }, [])
 
-  const { location: currentLocation } = useGeolocation()
+  const { location: currentLocation, heading: currentHeading } = useGeolocation()
 
   const [routes, setRoutes]                   = useState<Route[]>([])
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
@@ -680,6 +680,7 @@ export default function App() {
             profileKey={selectedProfile}
             onOverlayStatusChange={setOverlayStatus}
             currentLocation={currentLocation}
+            currentHeading={currentHeading}
             preferredItemNames={preferredItemNames}
             showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}

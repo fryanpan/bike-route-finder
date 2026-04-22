@@ -499,12 +499,21 @@ function RouteDisplay({
   )
 }
 
-const currentLocationIcon = L.divIcon({
-  html: '<div class="current-location-dot"><div class="current-location-pulse"></div></div>',
-  className: '',
-  iconSize: [48, 48],
-  iconAnchor: [24, 24],
-})
+/** Build a current-location divIcon, optionally showing a heading arrow.
+ *  When `heading` is a number (0 = north, clockwise), a blue wedge rotates
+ *  around the dot to show travel direction. When null, just the pulsing dot.
+ */
+function makeCurrentLocationIcon(heading: number | null): L.DivIcon {
+  const arrowHtml = heading != null
+    ? `<div class="current-location-arrow" style="transform: translate(-50%, -50%) rotate(${heading}deg);"></div>`
+    : ''
+  return L.divIcon({
+    html: `${arrowHtml}<div class="current-location-dot"><div class="current-location-pulse"></div></div>`,
+    className: 'current-location-icon',
+    iconSize: [64, 64],
+    iconAnchor: [32, 32],
+  })
+}
 
 /**
  * Recenter-on-current-location control. Rendered inside the
@@ -646,6 +655,7 @@ interface Props {
   profileKey: string
   onOverlayStatusChange: (status: string) => void
   currentLocation: { lat: number; lng: number } | null
+  currentHeading?: number | null
   preferredItemNames: Set<string>
   showOtherPaths: boolean
   flyToPlace?: Place | null
@@ -668,6 +678,7 @@ export default function Map({
   profileKey,
   onOverlayStatusChange,
   currentLocation,
+  currentHeading,
   preferredItemNames,
   showOtherPaths,
   flyToPlace,
@@ -772,7 +783,7 @@ export default function Map({
       {currentLocation && (
         <Marker
           position={[currentLocation.lat, currentLocation.lng]}
-          icon={currentLocationIcon}
+          icon={makeCurrentLocationIcon(currentHeading ?? null)}
           zIndexOffset={-100}
         />
       )}

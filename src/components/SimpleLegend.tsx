@@ -15,8 +15,10 @@ type DisplayTier = {
   description: string
 }
 
-// Tier metadata (title + description) is stable regardless of user
-// styling overrides. Colors + line weights come from adminSettings.
+// Tier metadata (title + fallback description). Fallback descriptions are
+// only shown when the mode's preferred set at that tier is empty or can't
+// be derived — normally the description is built at render time from the
+// ACTUAL preferred item names in that mode's PROFILE_LEGEND.
 export const SIMPLE_TIERS: DisplayTier[] = [
   { level: '1a', title: 'Car-free',                  description: 'Bike paths, shared foot paths, elevated sidewalk paths' },
   { level: '1b', title: 'Bikeway with minimal cars', description: 'Fahrradstraße, living streets, bike boulevards' },
@@ -85,6 +87,20 @@ export default function SimpleLegend({ profileKey }: Props) {
     for (const item of group.items) preferredLevels.add(item.level)
   }
 
+  // Per-tier description = the actual preferred item names at that tier
+  // for the selected mode, joined with commas. carrying-kid's 1a row
+  // therefore shows "Bike path, Shared use path" (not "… elevated
+  // sidewalk paths") because carrying-kid opts out of Elevated sidewalk.
+  const preferredItemsByLevel = new Map<PathLevel, string[]>()
+  for (const group of groups) {
+    if (!group.defaultPreferred) continue
+    for (const item of group.items) {
+      const list = preferredItemsByLevel.get(item.level) ?? []
+      list.push(item.name)
+      preferredItemsByLevel.set(item.level, list)
+    }
+  }
+
   const visibleTiers = SIMPLE_TIERS.filter((t) => preferredLevels.has(t.level))
   if (visibleTiers.length === 0) return null
 
@@ -116,15 +132,19 @@ export default function SimpleLegend({ profileKey }: Props) {
           ×
         </button>
       </div>
-      {visibleTiers.map((tier) => (
-        <div key={tier.level} className="simple-legend-row">
-          <LineSwatch color={colorForLevel(tier.level, settings.tiers)} />
-          <div className="simple-legend-text">
-            <div className="simple-legend-tier-title">{tier.title}</div>
-            <div className="simple-legend-tier-desc">{tier.description}</div>
+      {visibleTiers.map((tier) => {
+        const items = preferredItemsByLevel.get(tier.level) ?? []
+        const desc = items.length > 0 ? items.join(', ') : tier.description
+        return (
+          <div key={tier.level} className="simple-legend-row">
+            <LineSwatch color={colorForLevel(tier.level, settings.tiers)} />
+            <div className="simple-legend-text">
+              <div className="simple-legend-tier-title">{tier.title}</div>
+              <div className="simple-legend-tier-desc">{desc}</div>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

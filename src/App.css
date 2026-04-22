@@ -926,10 +926,36 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ── Current location dot (map) ─────────────────────── */
+.current-location-icon {
+  width: 64px;
+  height: 64px;
+  position: relative;
+}
+/* Heading wedge: a narrow translucent cone pointing from the dot in the
+   travel direction. Anchored at the icon center (32,32) and rotated via
+   inline style. `transform: rotate()` is applied on top of the
+   translate(-50%,-50%) centering. */
+.current-location-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 26px solid rgba(37, 99, 235, 0.75);
+  transform-origin: 50% 100%; /* rotate around the tip nearest the dot */
+  margin-top: -24px; /* lift the triangle so its tip touches the dot */
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
 .current-location-dot {
   width: 32px;
   height: 32px;
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
