@@ -20,6 +20,12 @@ jobs:
       - name: Build
         run: bun run build
         env:
+          # Release version — vite.config.ts injects this into the bundle
+          # via `define: __APP_VERSION__`, and src/{sentry,posthog,userback}.ts
+          # tag every event with it. Patch = GitHub Actions run number so
+          # every deploy gets a monotonic identifier traceable back to a
+          # workflow run (and from there, the commit).
+          VITE_APP_VERSION: "0.1.${{ github.run_number }}"
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           VITE_USERBACK_TOKEN: ${{ secrets.VITE_USERBACK_TOKEN }}

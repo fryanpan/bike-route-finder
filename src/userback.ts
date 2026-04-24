@@ -3,11 +3,14 @@
 // adds no weight to the main bundle. Gated to the prod hostname so it
 // never appears on localhost/dev.
 
+import { APP_VERSION } from './version'
+
 declare global {
   interface Window {
     Userback?: {
       access_token?: string
       on_load?: () => void
+      custom_data?: Record<string, unknown>
       [k: string]: unknown
     }
   }
@@ -20,7 +23,12 @@ export function initUserback() {
   if (location.hostname !== 'bike-map.fryanpan.com') return
   if (window.Userback) return
 
-  window.Userback = { access_token: token }
+  // custom_data attaches to every feedback submission, so every bug
+  // report arrives pre-tagged with the exact release that produced it.
+  window.Userback = {
+    access_token: token,
+    custom_data: { app_version: APP_VERSION },
+  }
 
   const s = document.createElement('script')
   s.async = true

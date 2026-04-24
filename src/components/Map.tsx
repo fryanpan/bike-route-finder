@@ -2,6 +2,7 @@ import L from 'leaflet'
 import { useEffect, useRef, useMemo, useState } from 'react'
 import { Marker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { PREFERRED_COLOR, OTHER_COLOR, getLegendItem } from '../utils/classify'
+import { classifyEdge, PATH_LEVEL_LABELS } from '../utils/lts'
 import { colorForLevel } from './SimpleLegend'
 import { useAdminSettings } from '../services/adminSettings'
 import { getVisibleTiles, getCachedTile, latLngToTile, classifyOsmTagsToItem } from '../services/overpass'
@@ -292,6 +293,11 @@ function SegmentPopup({
     ? '🚶 Walk your bike here'
     : `${legendItem?.icon ?? ''} ${seg.itemName ?? 'Route segment'}`
 
+  // LTS tier + plain-language description for the popover. Derived from
+  // the same classifyEdge() the router uses — one classifier, one truth.
+  const { pathLevel } = classifyEdge(tags)
+  const levelInfo = PATH_LEVEL_LABELS[pathLevel]
+
   // Reroute-around: prefer the way resolved at click time; otherwise
   // fall back to the segment's full wayIds list (older behavior).
   const rerouteWayIds: number[] = wayToAvoid != null
@@ -309,6 +315,12 @@ function SegmentPopup({
         {tags.name && (
           <div className="segment-popup-name">{tags.name}</div>
         )}
+
+        <div className="segment-popup-lts">
+          <span className="segment-popup-lts-tag">LTS {pathLevel}</span>
+          <span className="segment-popup-lts-name">{levelInfo.short}</span>
+          <div className="segment-popup-lts-desc">{levelInfo.description}</div>
+        </div>
 
         {imgLoading && <div className="segment-popup-img-loading">Loading street view…</div>}
         {!imgLoading && imgUrl && (
@@ -424,8 +436,14 @@ function RouteDisplay({
           const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
           const legendItem = getLegendItem(seg.itemName, profileKey)
           const isSelected = selected?.index === i
-          const color = legendItem && isPreferred
-            ? colorForLevel(legendItem.level, settings.tiers)
+          // Color from seg.pathLevel (populated in clientRouter from the
+          // same classifyEdge() the overlay uses) so a way can't render
+          // one color here and a different color in the overlay. Fall
+          // back to the legend-item-derived level only if pathLevel is
+          // missing (shouldn't happen for routes built post-2026-04-24).
+          const tierLevel = seg.pathLevel ?? legendItem?.level
+          const color = tierLevel && isPreferred
+            ? colorForLevel(tierLevel, settings.tiers)
             : isPreferred ? PREFERRED_COLOR : OTHER_COLOR
           const weight = isSelected ? ROUTE_WEIGHT_SELECTED : ROUTE_WEIGHT_DEFAULT
           return (

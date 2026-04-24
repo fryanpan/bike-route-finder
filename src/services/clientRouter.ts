@@ -413,8 +413,14 @@ export function routeOnGraph(
     coord: [number, number]
     isWalking?: boolean
     wayId?: number  // null on the first point (no inbound edge)
+    pathLevel?: import('../utils/lts').PathLevel
   }
   const classified: ClassifiedPoint[] = []
+  // Track per-coord pathLevel so we can attach it to the built segments
+  // below (segments are collapsed by itemName, but we need a representative
+  // pathLevel so downstream painters use the same classification as the
+  // overlay — single source of truth).
+  const pathLevelByCoord = new Map<string, import('../utils/lts').PathLevel>()
 
   for (let i = 0; i < nodes.length; i++) {
     if (i === 0) {
@@ -431,12 +437,15 @@ export function routeOnGraph(
       if (link.data.isWalking) walkingDistance += link.data.distance
 
       const itemName = classifyOsmTagsToItem(link.data.wayTags, profileKey, regionRules)
+      const { pathLevel } = classifyEdge(link.data.wayTags)
       classified.push({
         itemName,
         coord: [currNode.data.lat, currNode.data.lng],
         isWalking: link.data.isWalking,
         wayId: link.data.wayId,
+        pathLevel,
       })
+      pathLevelByCoord.set(`${currNode.data.lat},${currNode.data.lng}`, pathLevel)
     } else {
       classified.push({ itemName: null, coord: [currNode.data.lat, currNode.data.lng] })
     }
@@ -473,7 +482,15 @@ export function routeOnGraph(
       const found = wayIdsByCoord.get(k)
       if (found) for (const id of found) wayIds.add(id)
     }
-    return { ...base, wayIds: [...wayIds] }
+    // pathLevel — use the representative level from any coord on this
+    // segment. Within a segment itemName is constant, so pathLevel is
+    // effectively constant too; pick the first one we find.
+    let pathLevel: import('../utils/lts').PathLevel | undefined
+    for (const coord of seg.coordinates) {
+      const found = pathLevelByCoord.get(`${coord[0]},${coord[1]}`)
+      if (found) { pathLevel = found; break }
+    }
+    return { ...base, wayIds: [...wayIds], pathLevel }
   })
   const segments = healSegmentGaps(restoredSegments, preferredItemNames)
 
