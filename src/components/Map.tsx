@@ -436,8 +436,14 @@ function RouteDisplay({
           const isPreferred = seg.itemName !== null && preferredItemNames.has(seg.itemName)
           const legendItem = getLegendItem(seg.itemName, profileKey)
           const isSelected = selected?.index === i
-          const color = legendItem && isPreferred
-            ? colorForLevel(legendItem.level, settings.tiers)
+          // Color from seg.pathLevel (populated in clientRouter from the
+          // same classifyEdge() the overlay uses) so a way can't render
+          // one color here and a different color in the overlay. Fall
+          // back to the legend-item-derived level only if pathLevel is
+          // missing (shouldn't happen for routes built post-2026-04-24).
+          const tierLevel = seg.pathLevel ?? legendItem?.level
+          const color = tierLevel && isPreferred
+            ? colorForLevel(tierLevel, settings.tiers)
             : isPreferred ? PREFERRED_COLOR : OTHER_COLOR
           const weight = isSelected ? ROUTE_WEIGHT_SELECTED : ROUTE_WEIGHT_DEFAULT
           return (

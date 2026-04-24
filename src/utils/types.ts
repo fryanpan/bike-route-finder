@@ -99,6 +99,13 @@ export interface RouteSegment {
    * recomputing the route.
    */
   wayIds?: number[]
+  /**
+   * PathLevel from classifyEdge(tags) at build time. Single source of
+   * truth for coloring on the map — both the route painter (Map.tsx)
+   * and the overlay (BikeMapOverlay.tsx) use this, so route and overlay
+   * colors can't diverge for the same underlying way.
+   */
+  pathLevel?: import('./lts').PathLevel
 }
 
 export interface ValhallaManeuver {

@@ -232,10 +232,11 @@ export function computeRouteQuality(
     if (seg.isWalking) walking += count
     else if (seg.itemName && preferredItemNames.has(seg.itemName)) {
       preferred += count
-      if (profileKey) {
-        const lvl = getLegendItem(seg.itemName, profileKey)?.level
-        if (lvl) levelCounts[lvl] = (levelCounts[lvl] ?? 0) + count
-      }
+      // Prefer seg.pathLevel (populated in clientRouter from classifyEdge —
+      // same source the map painter uses). Fall back to the legend-item
+      // lookup for segments built before pathLevel was threaded through.
+      const lvl = seg.pathLevel ?? (profileKey ? getLegendItem(seg.itemName, profileKey)?.level : undefined)
+      if (lvl) levelCounts[lvl] = (levelCounts[lvl] ?? 0) + count
     } else other += count
   }
   const total = preferred + other + walking || 1

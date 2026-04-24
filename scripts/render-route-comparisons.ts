@@ -331,7 +331,7 @@ function renderSampleHtml(s: Sample): string {
 </body></html>`
 }
 
-function renderIndexHtml(samples: Sample[], runDate: string): string {
+function renderIndexHtml(samples: Sample[], runDate: string, version: string): string {
   // Sort city → mode → pair (alphabetical by origin then dest).
   const sorted = [...samples].sort((a, b) => {
     if (a.city !== b.city) return a.city < b.city ? -1 : 1
@@ -356,18 +356,89 @@ function renderIndexHtml(samples: Sample[], runDate: string): string {
   const gDists  = sorted.filter((s) => s.google)  .map((s) => s.google!  .distanceKm)
   const flagged = sorted.filter((s) => s.distanceFlag).length
 
+  // ── Heatmap palettes (colorblind-safe) ───────────────────────────
+  //
+  //   Preferred %: sequential "Blues" — light=worst-in-row, dark=best.
+  //   Distance:    divergent blue→white→orange. Blue=best (min of row),
+  //                neutral at 1.25× best, orange at 1.5× best or more.
+  //                Orange is distinct from blue for deutan/protan and
+  //                doesn't collide with red/green confusion.
+  //
+  // Per-row (not per-column) scaling — the point is "which router wins
+  // THIS route," not "how does this route rank globally."
+  function hexToRgb(h: string): [number, number, number] {
+    const s = h.replace('#', '')
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)]
+  }
+  function rgbToHex(r: number, g: number, b: number): string {
+    return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
+  }
+  function lerpColor(a: string, b: string, t: number): string {
+    const pa = hexToRgb(a), pb = hexToRgb(b)
+    return rgbToHex(pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t, pa[2] + (pb[2] - pa[2]) * t)
+  }
+  function relLuminance(hex: string): number {
+    const [r, g, b] = hexToRgb(hex).map((v) => {
+      const s = v / 255
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+    }) as [number, number, number]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  function textColorFor(bg: string): string {
+    return relLuminance(bg) < 0.55 ? '#fff' : '#111827'
+  }
+  /** Sequential Blues stop list — matches ColorBrewer "Blues" 9-class. */
+  const PREF_LIGHT = '#f7fbff'
+  const PREF_DARK  = '#08306b'
+  /** Divergent: blue (best) → near-white at 1.25× → orange (1.5×+). */
+  const DIST_BEST    = '#2166ac'
+  const DIST_NEUTRAL = '#f7f7f7'
+  const DIST_WORST   = '#e66101'
+
+  function prefColor(val: number | null, maxInRow: number): string | null {
+    if (val == null || maxInRow <= 0) return null
+    const t = Math.max(0, Math.min(1, val / maxInRow))
+    return lerpColor(PREF_LIGHT, PREF_DARK, t)
+  }
+  function distColor(val: number | null, minInRow: number): string | null {
+    if (val == null || minInRow <= 0) return null
+    const ratio = val / minInRow  // 1.0 best, 1.5+ worst-end
+    const t = Math.max(0, Math.min(1, (ratio - 1) / 0.5))  // 0..1 across best→worst
+    // Two-stop gradient through neutral at 0.5.
+    return t <= 0.5
+      ? lerpColor(DIST_BEST, DIST_NEUTRAL, t * 2)
+      : lerpColor(DIST_NEUTRAL, DIST_WORST, (t - 0.5) * 2)
+  }
+
   const rows = sorted.map((s) => {
     const fn = sampleFilename(s)
-    const cell = (leg: ScoredLeg | null) =>
-      leg ? `${leg.distanceKm.toFixed(1)} km · ${(leg.preferredPct * 100).toFixed(0)}%` : '<span class="fail">FAIL</span>'
+    const routers = [s.client, s.valhalla, s.brouter, s.google]
+
+    const prefs = routers.map((r) => r?.preferredPct ?? null)
+    const dists = routers.map((r) => r?.distanceKm   ?? null)
+    const maxPref = Math.max(...prefs.filter((v): v is number => v != null), 0)
+    const validDists = dists.filter((v): v is number => v != null && v > 0)
+    const minDist = validDists.length ? Math.min(...validDists) : 0
+
+    const distCell = (v: number | null): string => {
+      if (v == null) return `<td class="heat fail">FAIL</td>`
+      const bg = distColor(v, minDist) ?? ''
+      const fg = bg ? textColorFor(bg) : '#111827'
+      return `<td class="heat" style="background:${bg};color:${fg}">${v.toFixed(1)}</td>`
+    }
+    const prefCell = (v: number | null): string => {
+      if (v == null) return `<td class="heat fail">FAIL</td>`
+      const bg = prefColor(v, maxPref) ?? ''
+      const fg = bg ? textColorFor(bg) : '#111827'
+      return `<td class="heat" style="background:${bg};color:${fg}">${(v * 100).toFixed(0)}%</td>`
+    }
+
     return `<tr data-city="${s.cityDisplay}" data-mode="${s.mode}" data-pair="${(s.origin.label + ' → ' + s.dest.label).toLowerCase()}" data-flagged="${s.distanceFlag ? '1' : '0'}">
       <td>${s.cityDisplay}</td>
       <td>${s.mode}</td>
       <td>${s.origin.label} → ${s.dest.label}</td>
-      <td style="color:#2563eb">${cell(s.client)}</td>
-      <td style="color:#ea580c">${cell(s.valhalla)}</td>
-      <td style="color:#059669">${cell(s.brouter)}</td>
-      <td style="color:#dc2626">${cell(s.google)}</td>
+      ${distCell(dists[0])}${distCell(dists[1])}${distCell(dists[2])}${distCell(dists[3])}
+      ${prefCell(prefs[0])}${prefCell(prefs[1])}${prefCell(prefs[2])}${prefCell(prefs[3])}
       <td>${s.distanceFlag ? '<span class="flag">⚠</span>' : ''}</td>
       <td><a href="${fn}">open</a></td>
     </tr>`
@@ -375,7 +446,7 @@ function renderIndexHtml(samples: Sample[], runDate: string): string {
 
   return `<!DOCTYPE html>
 <html><head>
-<meta charset="utf-8"><title>Route-compare samples — ${runDate} (${sorted.length})</title>
+<meta charset="utf-8"><title>Route-compare ${version} — ${runDate} (${sorted.length})</title>
 <style>
   body { font-family: system-ui, sans-serif; padding: 20px; max-width: 1400px; margin: 0 auto; }
   h1 { font-size: 20px; margin: 0 0 6px; }
@@ -403,16 +474,24 @@ function renderIndexHtml(samples: Sample[], runDate: string): string {
   .filters .count { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #6b7280; margin-left: auto; }
 
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { padding: 6px 10px; border-bottom: 1px solid #eee; text-align: left; }
-  th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; }
-  td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(7) { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; font-size: 12px; }
+  /* Heatmap cells: right-aligned, monospace, thin vertical borders so
+     the per-router columns read cleanly. */
+  td.heat { font-family: ui-monospace, Menlo, monospace; text-align: right; padding: 6px 8px; border-right: 1px solid rgba(255,255,255,0.5); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sub { font-size: 11px; font-weight: 500; color: #6b7280; border-bottom: 1px solid #e5e7eb; text-align: center; padding: 4px 8px; }
+  .group-dist { border-left: 3px solid #2166ac; }
+  .group-pref { border-left: 3px solid #08306b; }
   tr.hidden { display: none; }
-  .fail { color: #b91c1c; font-weight: 500; }
+  .fail { color: #b91c1c; font-weight: 600; background: #fef2f2; text-align: center; }
   .flag { color: #b45309; font-weight: 600; }
+  /* Heatmap legend strip next to each column group title. */
+  .scale { display: inline-block; vertical-align: middle; margin-left: 6px; font-weight: 400; color: #6b7280; font-size: 10.5px; }
+  .scale-bar { display: inline-block; width: 60px; height: 8px; vertical-align: middle; border-radius: 2px; margin: 0 4px; }
 </style>
 </head><body>
 <h1>Route-compare samples</h1>
-<p class="subtitle">Run: ${runDate} · ${sorted.length} samples · City × mode × pair</p>
+<p class="subtitle">Run: ${runDate} · version <code>${version}</code> · ${sorted.length} samples · City × mode × pair</p>
 
 <div class="legend">
   <span><span class="sw" style="background:#2563eb"></span>Client router (ours)</span>
@@ -455,11 +534,33 @@ ${flagged > 0 ? `<div class="flag-banner">⚠ ${flagged} route(s) flagged for lo
 </div>
 
 <table>
-  <thead><tr>
-    <th>City</th><th>Mode</th><th>Route</th>
-    <th>Client</th><th>Valhalla</th><th>BRouter</th><th>Google</th>
-    <th>Flag</th><th></th>
-  </tr></thead>
+  <thead>
+    <tr>
+      <th rowspan="2">City</th>
+      <th rowspan="2">Mode</th>
+      <th rowspan="2">Route</th>
+      <th colspan="4" class="group-dist" style="text-align:center">
+        Distance (km)
+        <span class="scale">
+          <span class="scale-bar" style="background:linear-gradient(to right, ${DIST_BEST}, ${DIST_NEUTRAL}, ${DIST_WORST})"></span>
+          best → 1.5× best
+        </span>
+      </th>
+      <th colspan="4" class="group-pref" style="text-align:center">
+        Preferred %
+        <span class="scale">
+          <span class="scale-bar" style="background:linear-gradient(to right, ${PREF_LIGHT}, ${PREF_DARK})"></span>
+          low → best-in-row
+        </span>
+      </th>
+      <th rowspan="2">Flag</th>
+      <th rowspan="2"></th>
+    </tr>
+    <tr>
+      <th class="sub group-dist">Client</th><th class="sub">Valhalla</th><th class="sub">BRouter</th><th class="sub">Google</th>
+      <th class="sub group-pref">Client</th><th class="sub">Valhalla</th><th class="sub">BRouter</th><th class="sub">Google</th>
+    </tr>
+  </thead>
   <tbody id="rows">${rows}</tbody>
 </table>
 
@@ -522,7 +623,14 @@ async function main() {
   }
 
   const today = new Date().toISOString().slice(0, 10)
-  const outDir = join(process.cwd(), 'public/route-compare', today)
+  // Folder is named <YYYY-MM-DD>-<version> so a benchmark result can be
+  // traced back to the exact bundle that produced it. Locally the version
+  // is 0.1.0-dev-<sha>[-dirty]; in CI it would be 0.1.<run_number>. We
+  // derive it the same way vite.config.ts does so the value matches what
+  // src/version.ts would read.
+  const version = await resolveVersion()
+  const folderName = `${today}-${version}`
+  const outDir = join(process.cwd(), 'public/route-compare', folderName)
   await mkdir(outDir, { recursive: true })
   console.log(`\nOutput: ${outDir}`)
 
@@ -629,7 +737,7 @@ async function main() {
   }
 
   // ── Index + metrics ──────────────────────────────────────────────
-  await writeFile(join(outDir, 'index.html'), renderIndexHtml(samples, today))
+  await writeFile(join(outDir, 'index.html'), renderIndexHtml(samples, today, version))
 
   // Full metrics dump including coord arrays so historical runs can be
   // re-scored against an updated classifier later.
@@ -647,6 +755,7 @@ async function main() {
 
   const metrics = {
     runDate: today,
+    version,
     commit,
     count: samples.length,
     summary: {
@@ -674,6 +783,7 @@ async function main() {
   // per-run metrics files.
   const historyLine = JSON.stringify({
     runDate: today,
+    version,
     commit,
     count: samples.length,
     ...metrics.summary,
@@ -683,7 +793,7 @@ async function main() {
 
   console.log(`\n✓ Wrote ${samples.length} samples + index.html + metrics.json to ${outDir}`)
   console.log(`  appended 1 line to ${historyPath}`)
-  console.log(`  Browse: http://localhost:5173/route-compare/${today}/index.html`)
+  console.log(`  Browse: http://localhost:5173/route-compare/${folderName}/index.html`)
 }
 
 async function gitHead(): Promise<string | null> {
@@ -692,6 +802,19 @@ async function gitHead(): Promise<string | null> {
     const out = await new Response(proc.stdout).text()
     return out.trim() || null
   } catch { return null }
+}
+
+/** Matches vite.config.ts's resolveAppVersion. Keep in sync. */
+async function resolveVersion(): Promise<string> {
+  const envVer = process.env.VITE_APP_VERSION
+  if (envVer) return envVer
+  try {
+    const sha = Bun.spawn(['git', 'rev-parse', '--short', 'HEAD'], { stdout: 'pipe' })
+    const shaText = (await new Response(sha.stdout).text()).trim()
+    const dirtyProc = Bun.spawn(['git', 'status', '--porcelain'], { stdout: 'pipe' })
+    const dirty = (await new Response(dirtyProc.stdout).text()).trim().length > 0
+    return `0.1.0-dev-${shaText}${dirty ? '-dirty' : ''}`
+  } catch { return '0.1.0-dev-unknown' }
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })
