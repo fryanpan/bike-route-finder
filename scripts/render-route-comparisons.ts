@@ -165,21 +165,72 @@ async function brouterRoute(o: Location, d: Location, mode: ModeKey): Promise<Ro
 }
 
 // ── Scoring ────────────────────────────────────────────────────────────
+//
+// The nearest-way lookup runs 3 times per sample (client/valhalla/
+// brouter) × ~300 points per route × ~150k ways (Berlin): linear scan
+// is ~20 s/sample, which is the sole reason the full 195-sample run
+// used to take 90 minutes. Spatial grid brings it to <1 s/sample.
+//
+// Grid: lat/lng binned to 0.001° ≈ 100 m cells. For each query point
+// we only check the cell + 8 neighbours (≈ 300 m radius), which safely
+// contains the 55 m (0.0005°) match threshold.
 
-function scorePreferred(coords: [number, number][], tiles: OsmWay[], mode: ModeKey, preferred: Set<string>): number {
+const GRID_BIN = 0.001
+
+function buildWaySpatialGrid(ways: OsmWay[]): Map<string, OsmWay[]> {
+  const grid = new Map<string, OsmWay[]>()
+  for (const way of ways) {
+    // Add the way to every cell any of its vertices touches. Same way
+    // can land in many cells; that's fine — duplicates are cheap.
+    const seen = new Set<string>()
+    for (const [lat, lng] of way.coordinates) {
+      const key = `${Math.floor(lat / GRID_BIN)},${Math.floor(lng / GRID_BIN)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const arr = grid.get(key)
+      if (arr) arr.push(way)
+      else grid.set(key, [way])
+    }
+  }
+  return grid
+}
+
+function scorePreferred(
+  coords: [number, number][],
+  grid: Map<string, OsmWay[]>,
+  mode: ModeKey,
+  preferred: Set<string>,
+): number {
+  // classifyOsmTagsToItem is pure of `tags`, so cache by way within this
+  // single route — same way visited many times along the path shouldn't
+  // re-classify.
+  const classifyCache = new Map<OsmWay, string | null>()
   let total = 0, pref = 0
   for (let i = 1; i < coords.length; i++) {
     const d = haversineM(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1])
     total += d
+    const [lat, lng] = coords[i]
+    const bLat = Math.floor(lat / GRID_BIN)
+    const bLng = Math.floor(lng / GRID_BIN)
     let nearest: OsmWay | null = null, best = Infinity
-    for (const way of tiles) {
-      for (const [wLat, wLng] of way.coordinates) {
-        const wd = Math.abs(coords[i][0] - wLat) + Math.abs(coords[i][1] - wLng)
-        if (wd < best && wd < 0.0005) { best = wd; nearest = way }
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const ways = grid.get(`${bLat + dy},${bLng + dx}`)
+        if (!ways) continue
+        for (const way of ways) {
+          for (const [wLat, wLng] of way.coordinates) {
+            const wd = Math.abs(lat - wLat) + Math.abs(lng - wLng)
+            if (wd < best && wd < 0.0005) { best = wd; nearest = way }
+          }
+        }
       }
     }
     if (nearest) {
-      const item = classifyOsmTagsToItem(nearest.tags, mode)
+      let item = classifyCache.get(nearest)
+      if (item === undefined) {
+        item = classifyOsmTagsToItem(nearest.tags, mode)
+        classifyCache.set(nearest, item)
+      }
       if (item && preferred.has(item)) pref += d
     }
   }
@@ -467,9 +518,15 @@ async function main() {
         combos.push({ city, pair, mode })
   console.log(`${combos.length} samples across ${cities.length} cit${cities.length === 1 ? 'y' : 'ies'} × pairs × ${MODES.length} modes\n`)
 
-  // ── Tiles + graphs ───────────────────────────────────────────────
+  // ── Tiles + graphs + spatial grid ────────────────────────────────
   const tilesByCity = new Map<string, OsmWay[]>()
-  for (const city of cities) tilesByCity.set(city.key, await fetchTilesForCity(city))
+  const gridByCity = new Map<string, Map<string, OsmWay[]>>()
+  for (const city of cities) {
+    const ws = await fetchTilesForCity(city)
+    tilesByCity.set(city.key, ws)
+    console.log(`  building spatial index for ${city.displayName}…`)
+    gridByCity.set(city.key, buildWaySpatialGrid(ws))
+  }
   const graphCache = new Map<string, { graph: ReturnType<typeof buildRoutingGraph>; preferred: Set<string> }>()
   function getGraph(city: CityConfig, mode: ModeKey) {
     const key = `${city.key}:${mode}`
@@ -491,18 +548,22 @@ async function main() {
     console.log(`[${i + 1}/${combos.length}] ${city.displayName} · ${mode} · ${pair.origin.label} → ${pair.dest.label}`)
 
     const { graph, preferred } = getGraph(city, mode)
-    const tiles = tilesByCity.get(city.key)!
+    const grid = gridByCity.get(city.key)!
     const clientRes = routeOnGraph(graph, pair.origin.lat, pair.origin.lng, pair.dest.lat, pair.dest.lng, mode, preferred)
 
     let valhalla: RoutedLeg | null = null, brouter: RoutedLeg | null = null
     if (!skipExternal) {
-      valhalla = await valhallaRoute(pair.origin, pair.dest, mode)
-      await new Promise((r) => setTimeout(r, 1200))
-      brouter = await brouterRoute(pair.origin, pair.dest, mode)
+      // Valhalla + BRouter are independent public services — run in
+      // parallel. Still pace 1.2 s between iterations so a single
+      // service isn't getting hit faster than ~1 req/s from us.
+      ;[valhalla, brouter] = await Promise.all([
+        valhallaRoute(pair.origin, pair.dest, mode),
+        brouterRoute(pair.origin, pair.dest, mode),
+      ])
       await new Promise((r) => setTimeout(r, 1200))
     }
 
-    const score = (coords: [number, number][]) => scorePreferred(coords, tiles, mode, preferred)
+    const score = (coords: [number, number][]) => scorePreferred(coords, grid, mode, preferred)
     const client: ScoredLeg | null = clientRes ? {
       coords: clientRes.coordinates,
       distanceKm: clientRes.distanceKm,
