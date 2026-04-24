@@ -319,33 +319,83 @@ function findNearestNode(
   graph: Graph<NodeData, EdgeData>,
   lat: number,
   lng: number,
+  role: 'start' | 'end',
+  allowedSet?: Set<string>,
 ): string | null {
+  // A start node must have at least one OUTGOING edge (so A* can leave it).
+  // An end node must have at least one INCOMING edge (so A* can reach it).
+  // Without this check, `findNearestNode` happily snaps to the upstream
+  // terminus of a one-way street — 1 outgoing, 0 incoming — and A*
+  // returns null even though a perfectly good node a block away has
+  // incoming edges. This bit us for ~25% of SF samples in the 10fb94a
+  // benchmark (see docs/process/learnings.md).
+  //
+  // `allowedSet` optionally restricts the snap to a pre-computed set
+  // (e.g. the directed-reachable set from the start). Used for the
+  // end-node snap to avoid landing on a directed island that A* can't
+  // reach even though the node has incoming edges.
   let bestId: string | null = null
   let bestDist = Infinity
-  let fallbackId: string | null = null
+  let fallbackId: string | null = null  // any node with ANY edge — last resort
   let fallbackDist = Infinity
 
   graph.forEachNode((node: Node<NodeData>) => {
     const d = haversineM(lat, lng, node.data.lat, node.data.lng)
 
-    // ngraph stores links as a linked list on node.links; null means no links
     const links = graph.getLinks(node.id)
-    const connected = links !== null
+    if (links === null) return  // isolated node, skip entirely
 
-    if (connected) {
-      if (d < bestDist) {
-        bestDist = d
-        bestId = node.id as string
+    let hasRoleEdge = false
+    let hasAnyEdge = false
+    for (const link of links) {
+      hasAnyEdge = true
+      if (role === 'start' ? link.fromId === node.id : link.toId === node.id) {
+        hasRoleEdge = true
+        break
       }
-    } else {
-      if (d < fallbackDist) {
-        fallbackDist = d
-        fallbackId = node.id as string
-      }
+    }
+
+    const inAllowed = !allowedSet || allowedSet.has(node.id as string)
+
+    if (hasRoleEdge && inAllowed && d < bestDist) {
+      bestDist = d
+      bestId = node.id as string
+    } else if (hasAnyEdge && d < fallbackDist) {
+      fallbackDist = d
+      fallbackId = node.id as string
     }
   })
 
   return bestId ?? fallbackId
+}
+
+/**
+ * Forward BFS from `startId` following only outgoing edges, returning the
+ * set of node IDs reachable via some directed path. O(V + E).
+ *
+ * We pre-compute this when routing so the end-node snap can be restricted
+ * to a node A* can actually reach — the SF graph has ~47% of nodes in
+ * directed islands that look fine locally (have incoming edges) but are
+ * unreachable from the Castro origin.
+ */
+function computeReachableSet(
+  graph: Graph<NodeData, EdgeData>,
+  startId: string,
+): Set<string> {
+  const reachable = new Set<string>([startId])
+  const queue: string[] = [startId]
+  while (queue.length) {
+    const id = queue.pop()!
+    const links = graph.getLinks(id)
+    if (!links) continue
+    for (const link of links) {
+      if (link.fromId === id && !reachable.has(link.toId as string)) {
+        reachable.add(link.toId as string)
+        queue.push(link.toId as string)
+      }
+    }
+  }
+  return reachable
 }
 
 // ── Route on graph ─────────────────────────────────────────────────────────
@@ -375,9 +425,13 @@ export function routeOnGraph(
   preferredItemNames: Set<string>,
   regionRules?: ClassificationRule[],
 ): ClientRouteResult | null {
-  const startId = findNearestNode(graph, startLat, startLng)
-  const endId = findNearestNode(graph, endLat, endLng)
-  if (!startId || !endId) return null
+  const startId = findNearestNode(graph, startLat, startLng, 'start')
+  if (!startId) return null
+  // Restrict end-node snap to the start's directed-reachable set so we
+  // don't snap onto a disconnected island (cheap BFS, O(V + E)).
+  const reachable = computeReachableSet(graph, startId)
+  const endId = findNearestNode(graph, endLat, endLng, 'end', reachable)
+  if (!endId) return null
 
   const rule = resolveRule(profileKey)
   const maxSpeedMs = rule.ridingSpeedKmh / 3.6  // optimistic lower-bound for A*
