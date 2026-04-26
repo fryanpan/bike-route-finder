@@ -12,6 +12,17 @@ not_found_handling = "single-page-application"
 pattern = "bike-map.fryanpan.com"
 custom_domain = true
 
+# Sentry config for the Worker. Same project as the frontend — the runtime
+# tag set in withSentry() distinguishes browser vs worker without splitting
+# the issue list. SENTRY_DSN is the same value as the client VITE_SENTRY_DSN
+# (Sentry DSNs are public client-keys, not secrets), set via:
+#   wrangler secret put SENTRY_DSN
+# APP_VERSION is overridden per-deploy from CI so it matches the frontend
+# bundle's __APP_VERSION__.
+[vars]
+SENTRY_ENV = "production"
+APP_VERSION = "0.0.0-local"
+
 [[kv_namespaces]]
 binding = "CLASSIFICATION_RULES"
 id = "7245fe9209344518a731ee8569ea3fcc"

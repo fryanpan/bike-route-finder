@@ -10,7 +10,13 @@
  *   /api/overpass     → proxy to overpass-api.de with 30-day edge cache
  *   /api/mapillary/*  → proxy to graph.mapillary.com with server-injected
  *                       token + 7-day edge cache
+ *
+ * Error reporting goes to the same Sentry project as the frontend, with
+ * `tags.runtime = 'worker'` so the two stacks are filterable but cross-
+ * correlatable on a shared release tag.
  */
+
+import * as Sentry from '@sentry/cloudflare'
 
 // Cloudflare Workers extends the standard CacheStorage interface with a `default`
 // cache instance. This is not in the DOM lib types, so we declare it here.
@@ -36,12 +42,21 @@ interface D1PreparedStatement {
 type Env = {
   MAPILLARY_TOKEN?: string
   GOOGLE_MAPS_API_KEY?: string
+  /** Sentry DSN for the Worker. Same project as the frontend; the
+   *  `tags.runtime = 'worker'` set in withSentry() distinguishes them. */
+  SENTRY_DSN?: string
+  /** Release version, set per-deploy by CI (`0.1.<run_number>`). Lines
+   *  up with the frontend's APP_VERSION so a regression shows up under
+   *  the same Sentry release across both stacks. */
+  APP_VERSION?: string
+  /** 'production' on prod; absent or 'development' for `wrangler dev`. */
+  SENTRY_ENV?: string
   CLASSIFICATION_RULES: KVNamespace
   ROUTE_LOGS: D1Database
   ASSETS: { fetch: (request: Request) => Promise<Response> }
 }
 
-export default {
+const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     const path = url.pathname
@@ -376,6 +391,10 @@ export default {
         ).run()
         return Response.json({ ok: true, id })
       } catch (err) {
+        // D1 schema mismatches and connection failures are silent
+        // otherwise — capture so /api/route-log breakage shows up in
+        // Sentry rather than only in `wrangler tail`.
+        Sentry.captureException(err, { extra: { route: '/api/route-log' } })
         return Response.json({ error: String(err) }, { status: 500 })
       }
     }
@@ -392,6 +411,20 @@ export default {
     return env.ASSETS.fetch(request)
   },
 }
+
+export default Sentry.withSentry(
+  (env: Env) => ({
+    dsn: env.SENTRY_DSN,
+    release: env.APP_VERSION ?? '0.0.0-unknown',
+    environment: env.SENTRY_ENV ?? 'development',
+    initialScope: { tags: { runtime: 'worker' } },
+    // Errors only — no perf tracing.
+    tracesSampleRate: 0,
+    // If SENTRY_DSN isn't set (local `wrangler dev`), the SDK no-ops
+    // gracefully and the Worker behaves identically.
+  }),
+  handler,
+)
 
 /**
  * Handle segment feedback submitted during navigation.
