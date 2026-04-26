@@ -44,7 +44,17 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Per-deploy override: tag the Worker with the same APP_VERSION
+          # the frontend bundle was built with so Sentry events from both
+          # stacks share a release identifier. (--var overrides the
+          # placeholder in wrangler.toml's [vars] block.)
+          command: deploy --var "APP_VERSION:0.1.${{ github.run_number }}"
           secrets: |
             MAPILLARY_TOKEN
+            SENTRY_DSN
         env:
           MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
+          # Sentry DSN reuses the same value as the frontend secret (DSNs
+          # are public client-keys per Sentry docs). One Sentry project,
+          # tagged by `runtime` to distinguish worker vs browser.
+          SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}

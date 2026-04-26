@@ -10,6 +10,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@sentry/cloudflare": "^10.50.0",
     "@sentry/react": "^10.47.0",
     "leaflet": "^1.9.4",
     "ngraph.graph": "^20.1.2",
