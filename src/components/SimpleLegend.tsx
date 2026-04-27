@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { PROFILE_LEGEND, PREFERRED_COLOR, OTHER_COLOR, getEffectiveProfileLegend } from '../utils/classify'
 import { MODE_RULES } from '../data/modes'
 import type { RideMode } from '../data/modes'
-import type { PathLevel } from '../utils/lts'
+import { PATH_LEVEL_LABELS, type PathLevel } from '../utils/lts'
 import { useAdminSettings, DEFAULT_SETTINGS } from '../services/adminSettings'
 
 // Compact inline legend — only shows the preferred tiers for the selected
 // travel mode. Colors + weights come from adminSettings (hot-editable via
-// Admin Tools → Settings).
+// Admin Tools → Settings); tier titles + descriptions come from the
+// canonical PATH_LEVEL_LABELS table in utils/lts.ts.
 
 type DisplayTier = {
   level: PathLevel
@@ -15,17 +16,17 @@ type DisplayTier = {
   description: string
 }
 
-// Tier metadata (title + fallback description). Fallback descriptions are
-// only shown when the mode's preferred set at that tier is empty or can't
-// be derived — normally the description is built at render time from the
-// ACTUAL preferred item names in that mode's PROFILE_LEGEND.
-export const SIMPLE_TIERS: DisplayTier[] = [
-  { level: '1a', title: 'Car-free',                  description: 'Bike paths, shared foot paths, elevated sidewalk paths' },
-  { level: '1b', title: 'Bikeway with minimal cars', description: 'Fahrradstraße, living streets, bike boulevards' },
-  { level: '2a', title: 'Bike route beside cars',    description: 'Painted bike lane or shared bus lane on quiet streets' },
-  { level: '2b', title: 'Quiet residential street',  description: 'Residential street, no bike infra, speed ≤ 30 km/h' },
-  { level: '3',  title: 'Higher traffic street',     description: 'Streets 30–50 km/h, ≤ 3 lanes, with or without painted lane' },
-]
+// Levels rendered in the SimpleLegend (omits LTS 4 — never preferred,
+// always rejected by every mode). All title + description text comes
+// from PATH_LEVEL_LABELS so the legend can't drift from the audit and
+// segment-popup descriptions of the same tier.
+const SIMPLE_LEGEND_LEVELS: PathLevel[] = ['1a', '1b', '2a', '2b', '3']
+
+export const SIMPLE_TIERS: DisplayTier[] = SIMPLE_LEGEND_LEVELS.map((level) => ({
+  level,
+  title: PATH_LEVEL_LABELS[level].legendTitle,
+  description: PATH_LEVEL_LABELS[level].displayDescription,
+}))
 
 /**
  * Tier color for a given level — read from the CURRENT admin settings if

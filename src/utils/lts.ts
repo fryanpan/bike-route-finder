@@ -32,35 +32,84 @@ export type PathLevel = '1a' | '1b' | '2a' | '2b' | '3' | '4'
 export const PATH_LEVELS: readonly PathLevel[] = ['1a', '1b', '2a', '2b', '3', '4']
 
 /**
- * Human-readable labels for PathLevel. Short name is a 1-3 word header
- * suitable for a card; description expands with concrete examples.
- * Stable across modes — mode-specific acceptance is expressed by calling
- * `applyModeRule` on a full classification in src/data/modes.ts.
+ * Single source of truth for PathLevel display props. One table, four
+ * fields per level, consumed by:
+ *   - SimpleLegend (uses short + displayDescription)
+ *   - Admin Settings tiers (uses defaultColor + defaultWeight as the
+ *     compile-time defaults; user can override per-tier in the UI)
+ *   - Map.tsx + BikeMapOverlay.tsx (use short + description for popups)
+ *   - AuditSamplesTab.tsx (uses short + description)
+ *
+ * If you're adding a new tier display surface, derive its mapping FROM
+ * this table — don't add a parallel one. (Was: SIMPLE_TIERS in
+ * SimpleLegend.tsx and DEFAULT_SETTINGS.tiers in adminSettings.ts both
+ * had their own tier tables that drifted from the technical descriptions
+ * here, surfaced by Bryan's 2026-04-27 audit.)
+ *
+ * Stable across travel modes — mode-specific acceptance is expressed by
+ * calling `applyModeRule` on a full classification in src/data/modes.ts.
  */
-export const PATH_LEVEL_LABELS: Record<PathLevel, { short: string; description: string }> = {
+export const PATH_LEVEL_LABELS: Record<PathLevel, {
+  /** 1-3 word header for cramped surfaces (segment popups, audit). */
+  short: string
+  /** User-facing legend title — more descriptive than `short`. SimpleLegend. */
+  legendTitle: string
+  /** Technical description with concrete examples — admin / segment popups. */
+  description: string
+  /** User-friendly description for first-time visitors — SimpleLegend. */
+  displayDescription: string
+  /** Default tier color. Admin settings can override per-tier. */
+  defaultColor: string
+  /** Overlay line weight multiplier (relative to a base width). */
+  defaultWeight: number
+}> = {
   '1a': {
     short: 'Car-free',
+    legendTitle: 'Car-free',
     description: 'Cycleways, bike paths, park paths, curb-separated cycle tracks, forest/farm tracks.',
+    displayDescription: 'Bike paths, shared foot paths, elevated sidewalk paths',
+    defaultColor: '#004529',
+    defaultWeight: 0.75,
   },
   '1b': {
     short: 'Bike-priority',
+    legendTitle: 'Bikeway with minimal cars',
     description: 'Fahrradstraße, living street, bike boulevard, SF Slow Street — cars present but legally yielding.',
+    displayDescription: 'Fahrradstraße, living streets, bike boulevards',
+    defaultColor: '#238443',
+    defaultWeight: 0.75,
   },
   '2a': {
     short: 'Lane + quiet street',
+    legendTitle: 'Bike route beside cars',
     description: 'Painted bike lane or shared bus lane on a street capped ≤30 km/h.',
+    displayDescription: 'Painted bike lane or shared bus lane on quiet streets',
+    defaultColor: '#2b8cbe',
+    defaultWeight: 0.75,
   },
   '2b': {
     short: 'Quiet residential',
+    legendTitle: 'Quiet residential street',
     description: 'Residential street without bike infra, low speed / low volume.',
+    displayDescription: 'Residential street, no bike infra, speed ≤ 30 km/h',
+    defaultColor: '#e78ac3',
+    defaultWeight: 0.75,
   },
   '3': {
     short: 'Busy street',
+    legendTitle: 'Higher traffic street',
     description: 'Tertiary, busy residentials, painted lane on 31-50 km/h — cyclist-in-traffic.',
+    displayDescription: 'Streets 30–50 km/h, ≤ 3 lanes, with or without painted lane',
+    defaultColor: '#ffd92f',
+    defaultWeight: 0.75,
   },
   '4': {
     short: 'Major road',
+    legendTitle: 'Major road',
     description: 'Primary/secondary/trunk without bike infra — unsafe for families.',
+    displayDescription: 'Primary or secondary road at 50+ km/h without separation',
+    defaultColor: '#999999',
+    defaultWeight: 0.4,
   },
 }
 
