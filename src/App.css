@@ -571,8 +571,11 @@ button { font-family: inherit; cursor: pointer; }
   gap: 1px;
 }
 .qb-segment { min-width: 4px; border-radius: 5px; }
-.qb-preferred { background: #22c55e; }
-.qb-other     { background: #fb923c; }
+/* Per-tier qb-segment colors come from inline `style={{ background: ... }}`
+   in DirectionsPanel.tsx, sourced from PATH_LEVEL_LABELS / classify.ts
+   constants. CSS classes for specific buckets were removed because they
+   drifted from the canonical colors (e.g. .qb-other had #fb923c while
+   the route polyline used #f97316 for the same "non-preferred" concept). */
 .quality-labels {
   list-style: none;
   padding: 0;

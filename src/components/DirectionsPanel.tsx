@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { formatDistance, formatDuration } from '../utils/format'
-import { computeRouteQuality } from '../utils/classify'
+import { computeRouteQuality, OTHER_COLOR, WALKING_COLOR } from '../utils/classify'
 import { SIMPLE_TIERS, colorForLevel } from './SimpleLegend'
 import { useAdminSettings } from '../services/adminSettings'
 import SegmentFeedback from './SegmentFeedback'
@@ -199,10 +199,10 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
               )
             })}
             {quality.walking > 0 && (
-              <div className="qb-segment qb-walking" style={{ flex: quality.walking }} title={`${Math.round(quality.walking * 100)}% walking`} />
+              <div className="qb-segment" style={{ flex: quality.walking, background: WALKING_COLOR }} title={`${Math.round(quality.walking * 100)}% walking`} />
             )}
             {quality.other > 0 && (
-              <div className="qb-segment qb-other" style={{ flex: quality.other }} title={`${Math.round(quality.other * 100)}% other`} />
+              <div className="qb-segment" style={{ flex: quality.other, background: OTHER_COLOR }} title={`${Math.round(quality.other * 100)}% other`} />
             )}
           </div>
           {/* Labels show every category with > 0 share so the displayed
@@ -223,14 +223,14 @@ export default function DirectionsPanel({ route, onClose, preferredItemNames, cu
             })}
             {quality.walking >= 0.005 && (
               <li className="ql-row">
-                <span className="ql-dot" style={{ background: '#6b7280' }} />
+                <span className="ql-dot" style={{ background: WALKING_COLOR }} />
                 <span className="ql-pct ql-walking">{Math.round(quality.walking * 100)}%</span>
                 <span className="ql-label">walk the bike</span>
               </li>
             )}
             {quality.other >= 0.005 && (
               <li className="ql-row">
-                <span className="ql-dot" style={{ background: '#f97316' }} />
+                <span className="ql-dot" style={{ background: OTHER_COLOR }} />
                 <span className="ql-pct ql-other">{Math.round(quality.other * 100)}%</span>
                 <span className="ql-label">non-preferred</span>
               </li>

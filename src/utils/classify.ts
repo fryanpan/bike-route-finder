@@ -3,8 +3,17 @@ import type { PathLevel } from './lts'
 
 // Two-tone display palette — preferred paths green, other paths orange.
 // Chosen for high contrast against OpenStreetMap tile backgrounds.
+//
+// These three colors are the SOURCE OF TRUTH for non-tier categorization
+// (preferred vs. non-preferred vs. walking). Per-tier colors live in
+// PATH_LEVEL_LABELS in utils/lts.ts. CSS rules MUST NOT redeclare these
+// values — consumers should import the constants and apply them inline,
+// otherwise drift creeps in (the route polyline orange and the quality-
+// bar "non-preferred" orange ended up two different shades before this
+// was unified, 2026-04-27).
 export const PREFERRED_COLOR = '#10b981'  // teal-green
 export const OTHER_COLOR     = '#f97316'  // orange
+export const WALKING_COLOR   = '#6b7280'  // gray-500 — bridge-walk segments
 
 // ── Profile-aware legend ────────────────────────────────────────────────────
 // Each ride mode defines which infrastructure tiers are preferred by default.

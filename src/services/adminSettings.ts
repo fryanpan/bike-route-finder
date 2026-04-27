@@ -9,7 +9,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { RideMode } from '../data/modes'
-import type { PathLevel } from '../utils/lts'
+import { PATH_LEVELS, PATH_LEVEL_LABELS, type PathLevel } from '../utils/lts'
 
 const STORAGE_KEY = 'family-bike-map:admin-settings:v1'
 
@@ -64,15 +64,18 @@ export interface AdminSettings {
   modeRouting: Partial<Record<RideMode, Partial<ModeRoutingParams>>>
 }
 
+// Tier defaults are derived from PATH_LEVEL_LABELS so the legend table
+// and the admin-settings tier table can never drift. To change a tier
+// color or weight default, edit utils/lts.ts.
+const DEFAULT_TIERS: AdminSettings['tiers'] = Object.fromEntries(
+  PATH_LEVELS.map((l) => [l, {
+    color: PATH_LEVEL_LABELS[l].defaultColor,
+    weight: PATH_LEVEL_LABELS[l].defaultWeight,
+  }]),
+) as AdminSettings['tiers']
+
 export const DEFAULT_SETTINGS: AdminSettings = {
-  tiers: {
-    '1a': { color: '#004529', weight: 0.75 },
-    '1b': { color: '#238443', weight: 0.75 },
-    '2a': { color: '#2b8cbe', weight: 0.75 },
-    '2b': { color: '#e78ac3', weight: 0.75 },
-    '3':  { color: '#ffd92f', weight: 0.75 },
-    '4':  { color: '#999999', weight: 0.4 },
-  },
+  tiers: DEFAULT_TIERS,
   overlayHaloExtra: 4,
   overlayOpacityWithRoute: 0.35,
   overlayOpacityBrowsing: 1.0,
