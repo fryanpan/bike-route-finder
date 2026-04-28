@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey, classifyOsmTagsToItem, isOverlayHiddenSurface } from '../services/overpass'
-import { PREFERRED_COLOR, OTHER_COLOR, PROFILE_LEGEND } from '../utils/classify'
+import { PREFERRED_COLOR, OTHER_COLOR, PROFILE_LEGEND, getDisplayPathLevel } from '../utils/classify'
 import { classifyEdge, PATH_LEVEL_LABELS } from '../utils/lts'
 import type { PathLevel } from '../utils/lts'
 import { colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
@@ -149,8 +149,8 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
     }
     const toRender: RenderedWay[] = []
     for (const way of ways) {
-      const { pathLevel } = classifyEdge(way.tags)
-      if (pathLevel === '4') continue
+      const { pathLevel: routingPathLevel } = classifyEdge(way.tags)
+      if (routingPathLevel === '4') continue
       // Mode-independent overlay-hide: only universally-bad surfaces
       // (cobblestone / gravel / dirt / bad smoothness) hide. Profile-
       // dependent roughness (e.g. paving_stones at higher-speed modes)
@@ -158,10 +158,16 @@ function OverlayRenderer({ ways, profileKey, preferredItemNames, showOtherPaths,
       // user toggles up in kid-skill. The router still penalises the
       // latter with a 5× cost multiplier via applyModeRule.
       if (isOverlayHiddenSurface(way.tags)) continue
+
+      const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
+      // Display level — canonical via the legend item when one matches,
+      // else fall back to classifyEdge's tier. Same helper the route
+      // polyline + bar use, so the overlay can't render one tier color
+      // for the same way that the route or legend renders differently.
+      const pathLevel = getDisplayPathLevel(itemName, profileKey, routingPathLevel)
       const isLevelPreferred = preferredLevels.has(pathLevel)
       if (!isLevelPreferred && !showOtherPaths) continue
 
-      const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
       const isPreferred = itemName !== null && preferredItemNames.has(itemName)
       const color = isLevelPreferred ? colorForLevel(pathLevel, settings.tiers) : OTHER_COLOR
 
