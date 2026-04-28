@@ -16,7 +16,7 @@ import {
   tileKey,
   classifyOsmTagsToItem,
 } from './overpass'
-import { buildSegments, healSegmentGaps } from '../utils/classify'
+import { buildSegments, healSegmentGaps, getDisplayPathLevel } from '../utils/classify'
 import { classifyEdge } from '../utils/lts'
 import { MODE_RULES, applyModeRule, getEffectiveModeRule } from '../data/modes'
 import { loadSettings } from './adminSettings'
@@ -509,7 +509,12 @@ export function routeOnGraph(
       if (link.data.isWalking) walkingDistance += link.data.distance
 
       const itemName = classifyOsmTagsToItem(link.data.wayTags, profileKey, regionRules)
-      const { pathLevel } = classifyEdge(link.data.wayTags)
+      const { pathLevel: routingPathLevel } = classifyEdge(link.data.wayTags)
+      // Display level — canonical via the legend item when one matches,
+      // else fall back to classifyEdge's tier. This is what painter, bar,
+      // overlay, and legend all derive their colors from. Routing cost
+      // decisions in applyModeRule still read classifyEdge directly.
+      const pathLevel = getDisplayPathLevel(itemName, profileKey, routingPathLevel)
       classified.push({
         itemName,
         coord: [currNode.data.lat, currNode.data.lng],

@@ -373,6 +373,38 @@ export function getLegendItem(name: string | null, profileKey: string): LegendIt
   return undefined
 }
 
+/**
+ * Single source of truth for "what tier should this way DISPLAY as?"
+ *
+ * Used by every display surface — the overlay, the route polyline
+ * painter, the route-quality bar, and (transitively) the legend. Routing
+ * cost decisions still use `classifyEdge` directly because the router
+ * needs LTS info; this helper is display-only.
+ *
+ * Architecture: there are two tag→tier classifiers in this codebase —
+ * `classifyEdge` (LTS-based, in lts.ts) and `classifyOsmTagsToItem`
+ * (legend-item-based, in overpass.ts). Their tier outputs can disagree
+ * for the same OSM way (e.g. a 30-km/h residential street with a painted
+ * lane: classifyEdge might call it pathLevel='2a' while the legend item
+ * 'Painted bike lane on quiet street' is also 2a — they happen to
+ * agree here, but they're not GUARANTEED to). Before this helper, the
+ * legend used `PROFILE_LEGEND[item].level` while overlay and route
+ * polyline used `classifyEdge.pathLevel`, so they could render the same
+ * way at different tier colors. (Bryan's 2026-04-28 launch-blocking
+ * report.)
+ *
+ * The fix is: when an OSM way maps to a known legend item, the
+ * legend's level is canonical. Else fall back to classifyEdge.
+ */
+export function getDisplayPathLevel(
+  itemName: string | null,
+  profileKey: string,
+  fallbackPathLevel: PathLevel,
+): PathLevel {
+  const item = getLegendItem(itemName, profileKey)
+  return item?.level ?? fallbackPathLevel
+}
+
 // getCostingFromPreferences was a Valhalla-specific helper that computed
 // `use_roads` from the user's preferred items. It has been removed: the main
 // app no longer uses Valhalla, and the client router reads preferences
