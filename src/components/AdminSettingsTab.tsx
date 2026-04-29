@@ -5,6 +5,8 @@ import { MODE_RULES } from '../data/modes'
 import type { RideMode } from '../data/modes'
 import { PATH_LEVELS } from '../utils/lts'
 import type { PathLevel } from '../utils/lts'
+import { readEnvKeys, resolveGeocoder } from '../services/geocoder/resolve'
+import type { GeocoderEngineKind } from '../services/geocoder/types'
 
 // ── Path-type → category mapping (hardcoded from classifyOsmTagsToItem) ─────
 
@@ -91,8 +93,55 @@ export default function AdminSettingsTab() {
 
   const modes: RideMode[] = ['kid-starting-out', 'kid-confident', 'kid-traffic-savvy', 'carrying-kid', 'training']
 
+  // Resolve the geocoder once per render so we can show whether the
+  // selection actually applied (or fell back to Nominatim because a
+  // key was missing).
+  const envKeys = readEnvKeys()
+  const resolved = resolveGeocoder(settings.geocoderEngine, envKeys)
+  const geocoderOptions: Array<{ value: GeocoderEngineKind; label: string; needsKey: boolean }> = [
+    { value: 'nominatim', label: 'Nominatim (OpenStreetMap, default)', needsKey: false },
+    { value: 'google',    label: 'Google Places (typo-tolerant)',      needsKey: true },
+  ]
+
   return (
     <div className="admin-settings">
+      {/* ── Search engine ──────────────────────────────────────────── */}
+      <section className="admin-section">
+        <h3>Location search</h3>
+        <label className="admin-num-field">
+          Search engine
+          <select
+            className="admin-input"
+            value={settings.geocoderEngine}
+            onChange={(e) => update('geocoderEngine', e.target.value as GeocoderEngineKind)}
+            style={{ width: 280 }}
+          >
+            {geocoderOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+                {opt.needsKey && !envKeys.googleMapsKey ? ' — key missing' : ''}
+              </option>
+            ))}
+          </select>
+          <span className="admin-hint">
+            {settings.geocoderEngine === 'google' && !envKeys.googleMapsKey && (
+              <>
+                <strong>VITE_GOOGLE_MAPS_KEY</strong> is missing — falling back to Nominatim.
+                Set it in <code>.env.local</code> (and Deploy secrets for prod), then rebuild.
+              </>
+            )}
+            {settings.geocoderEngine === 'google' && envKeys.googleMapsKey && (
+              <>Google Places active. Make sure <strong>Places API</strong> + <strong>Geocoding API</strong> are enabled in the same Google Cloud project.</>
+            )}
+            {settings.geocoderEngine === 'nominatim' && (
+              <>Free OpenStreetMap geocoder, proxied via <code>/api/nominatim</code>.</>
+            )}
+            {' '}Currently using: <strong>{resolved.kind}</strong>
+            {resolved.fellBack ? ' (fallback)' : ''}.
+          </span>
+        </label>
+      </section>
+
       {/* ── Visibility toggles ─────────────────────────────────────── */}
       <section className="admin-section">
         <h3>Visibility</h3>
