@@ -10,6 +10,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^2.0.2",
     "@sentry/cloudflare": "^10.50.0",
     "@sentry/react": "^10.47.0",
     "leaflet": "^1.9.4",
