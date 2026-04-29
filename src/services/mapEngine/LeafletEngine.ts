@@ -10,6 +10,7 @@
 // lines).
 
 import L from 'leaflet'
+import { CachedTileLayer } from '../cachedTileLayer'
 import type {
   MapEngine, MapInitOptions, MapEventName, MapEvent,
   LatLng, LatLngBounds, FitBoundsOptions,
@@ -73,7 +74,10 @@ export class LeafletEngine implements MapEngine {
       options.baseStyle === 'maptiler-streets-light' && options.maptilerKey
         ? maptilerTile(options.maptilerKey)
         : TILE_OSM
-    this.tileLayer = L.tileLayer(tile.url, { attribution: tile.attribution }).addTo(this.map)
+    // Use CachedTileLayer so base tiles paint from IndexedDB on a return
+    // visit before any network fetch starts (sub-second second-load goal).
+    // Drop-in replacement for L.TileLayer — same constructor signature.
+    this.tileLayer = new CachedTileLayer(tile.url, { attribution: tile.attribution }).addTo(this.map)
   }
 
   unmount(): void {
