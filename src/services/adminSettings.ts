@@ -11,6 +11,7 @@ import { useSyncExternalStore } from 'react'
 import type { RideMode } from '../data/modes'
 import { PATH_LEVELS, PATH_LEVEL_LABELS, type PathLevel } from '../utils/lts'
 import type { GeocoderEngineKind } from './geocoder/types'
+import type { MapEngineKind } from './mapEngine/types'
 
 const STORAGE_KEY = 'family-bike-map:admin-settings:v1'
 
@@ -68,6 +69,11 @@ export interface AdminSettings {
    *  time — falls back to nominatim if absent). See
    *  src/services/geocoder/. */
   geocoderEngine: GeocoderEngineKind
+  /** Which map rendering engine to use. Falls back to leaflet-osm if
+   *  the chosen engine's API key is missing at build time (see
+   *  src/services/mapEngine/resolve.ts). Change requires page reload —
+   *  hot-swap of the underlying map library is too fragile to support. */
+  mapEngine: MapEngineKind
 }
 
 // Tier defaults are derived from PATH_LEVEL_LABELS so the legend table
@@ -95,6 +101,7 @@ export const DEFAULT_SETTINGS: AdminSettings = {
   showStartNavigation: false,
   modeRouting: {},
   geocoderEngine: 'nominatim',
+  mapEngine: 'leaflet-osm',
 }
 
 // ── Load/save ──────────────────────────────────────────────────────────────

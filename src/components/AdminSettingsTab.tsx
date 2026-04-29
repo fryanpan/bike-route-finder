@@ -5,8 +5,10 @@ import { MODE_RULES } from '../data/modes'
 import type { RideMode } from '../data/modes'
 import { PATH_LEVELS } from '../utils/lts'
 import type { PathLevel } from '../utils/lts'
-import { readEnvKeys, resolveGeocoder } from '../services/geocoder/resolve'
+import { readEnvKeys as readGeocoderEnvKeys, resolveGeocoder } from '../services/geocoder/resolve'
 import type { GeocoderEngineKind } from '../services/geocoder/types'
+import { readEnvKeys as readMapEngineEnvKeys, resolveEngine } from '../services/mapEngine'
+import type { MapEngineKind } from '../services/mapEngine'
 
 // ── Path-type → category mapping (hardcoded from classifyOsmTagsToItem) ─────
 
@@ -93,18 +95,57 @@ export default function AdminSettingsTab() {
 
   const modes: RideMode[] = ['kid-starting-out', 'kid-confident', 'kid-traffic-savvy', 'carrying-kid', 'training']
 
-  // Resolve the geocoder once per render so we can show whether the
-  // selection actually applied (or fell back to Nominatim because a
+  // Resolve the geocoder + map engine once per render so we can show
+  // whether each selection actually applied (or fell back because a
   // key was missing).
-  const envKeys = readEnvKeys()
-  const resolved = resolveGeocoder(settings.geocoderEngine, envKeys)
+  const geocoderEnvKeys = readGeocoderEnvKeys()
+  const mapEngineEnvKeys = readMapEngineEnvKeys()
+  const resolvedGeocoder = resolveGeocoder(settings.geocoderEngine, geocoderEnvKeys)
+  const resolvedEngine = resolveEngine(settings.mapEngine, mapEngineEnvKeys)
   const geocoderOptions: Array<{ value: GeocoderEngineKind; label: string; needsKey: boolean }> = [
     { value: 'nominatim', label: 'Nominatim (OpenStreetMap, default)', needsKey: false },
     { value: 'google',    label: 'Google Places (typo-tolerant)',      needsKey: true },
   ]
 
+  function setMapEngine(kind: MapEngineKind): void {
+    setSettings({ ...settings, mapEngine: kind })
+  }
+
   return (
     <div className="admin-settings">
+      {/* ── Map rendering engine ───────────────────────────────────── */}
+      <section className="admin-section">
+        <h3>Map rendering engine</h3>
+        <label className="admin-num-field">
+          Engine
+          <select
+            className="admin-input"
+            value={settings.mapEngine}
+            onChange={(e) => setMapEngine(e.target.value as MapEngineKind)}
+            style={{ width: 280 }}
+          >
+            <option value="leaflet-osm">Leaflet + OpenStreetMap Carto (default)</option>
+            <option value="leaflet-maptiler">Leaflet + MapTiler Streets v2 light</option>
+            <option value="google-maps">Google Maps (JavaScript SDK)</option>
+          </select>
+        </label>
+        <div className="admin-hint">
+          Applies to both base tiles AND route / bike-infra polyline rendering.
+          Reload the page after changing the engine — hot-swap is not supported.
+        </div>
+        {resolvedEngine.fellBack && (
+          <div className="admin-hint" style={{ color: '#b91c1c' }}>
+            ⚠ {resolvedEngine.fallbackReason}. Falling back to leaflet-osm. Add the key to
+            <code> .env.local</code> (and to GitHub Actions Deploy secrets for prod).
+          </div>
+        )}
+        <div className="admin-hint">
+          Build-time keys detected:
+          {mapEngineEnvKeys.maptilerKey   ? ' VITE_MAPTILER_KEY ✓' : ' VITE_MAPTILER_KEY ✗'}
+          {mapEngineEnvKeys.googleMapsKey ? ' · VITE_GOOGLE_MAPS_KEY ✓' : ' · VITE_GOOGLE_MAPS_KEY ✗'}
+        </div>
+      </section>
+
       {/* ── Search engine ──────────────────────────────────────────── */}
       <section className="admin-section">
         <h3>Location search</h3>
@@ -119,25 +160,25 @@ export default function AdminSettingsTab() {
             {geocoderOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
-                {opt.needsKey && !envKeys.googleMapsKey ? ' — key missing' : ''}
+                {opt.needsKey && !geocoderEnvKeys.googleMapsKey ? ' — key missing' : ''}
               </option>
             ))}
           </select>
           <span className="admin-hint">
-            {settings.geocoderEngine === 'google' && !envKeys.googleMapsKey && (
+            {settings.geocoderEngine === 'google' && !geocoderEnvKeys.googleMapsKey && (
               <>
                 <strong>VITE_GOOGLE_MAPS_KEY</strong> is missing — falling back to Nominatim.
                 Set it in <code>.env.local</code> (and Deploy secrets for prod), then rebuild.
               </>
             )}
-            {settings.geocoderEngine === 'google' && envKeys.googleMapsKey && (
+            {settings.geocoderEngine === 'google' && geocoderEnvKeys.googleMapsKey && (
               <>Google Places active. Make sure <strong>Places API</strong> + <strong>Geocoding API</strong> are enabled in the same Google Cloud project.</>
             )}
             {settings.geocoderEngine === 'nominatim' && (
               <>Free OpenStreetMap geocoder, proxied via <code>/api/nominatim</code>.</>
             )}
-            {' '}Currently using: <strong>{resolved.kind}</strong>
-            {resolved.fellBack ? ' (fallback)' : ''}.
+            {' '}Currently using: <strong>{resolvedGeocoder.kind}</strong>
+            {resolvedGeocoder.fellBack ? ' (fallback)' : ''}.
           </span>
         </label>
       </section>
