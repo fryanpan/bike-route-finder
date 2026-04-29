@@ -2,6 +2,11 @@
 
 Technical discoveries that should persist across sessions.
 
+## React-Leaflet rendering
+
+- **`react-leaflet@4.x`'s `<Polyline>` only flows `pathOptions={...}` updates to Leaflet's `setStyle()`.** Top-level `color`, `weight`, `opacity` props are spread into the polyline at *creation* time and **silently ignored on re-render**. If a Polyline's color depends on prop state that changes (e.g. tier color recomputed when the user switches travel mode), pass styling via `pathOptions` or React will keep the old stroke painted on screen forever. The data layer (route panel, quality bar) updates correctly because it's plain React; the painter stale-renders because Leaflet's mutable layer didn't get the memo. Caught launch-day 2026-04-29 — bar showed 15% medium-green for "Living street" segments while the polyline kept them orange from the prior mode.
+- **The bug class is "rendering-layer divergence" — same data, different surfaces disagree.** Pure-script reproductions (`scripts/debug-color-mismatch.ts`) cover the data path but miss bugs in the React → Leaflet bridge. To reproduce these, drive the actual UI in the browser (claude-in-chrome MCP works for this) and compare what the bar/legend says against what the painted DOM shows. If they disagree, the bug is downstream of the data computation.
+
 ## Scoring architecture
 
 - **One classifier drives both display and routing.** The same function that colors map tiles green or orange is the function that builds the routing cost function. Two parallel classifiers drift silently; a single source of truth does not. In this repo the canonical function is `classifyOsmTagsToItem` (for display) + `classifyEdge` (for routing), and the PR review should confirm neither grows mode-specific logic that diverges from the other.
