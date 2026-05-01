@@ -750,11 +750,11 @@ export default function Map(props: Props) {
       eng.unmount()
       setEngine(null)
     }
-  // Re-mount only when engine, style, or POI toggle change — these all
-  // require Google Maps / Leaflet to fully reinitialize. Other settings
-  // mutate live via existing effects.
+  // Mount once on first render. Engine / style / POI changes route
+  // through AdminSettingsTab which triggers a full page reload, so we
+  // don't need to remount here on those changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.mapEngine, settings.mapStyle, settings.googleShowLandmarks])
+  }, [])
 
   // The previously-selected segment for the popup. Lives in React state
   // because the popup is a React component portaling onto the map div.
