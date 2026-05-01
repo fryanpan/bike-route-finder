@@ -27,6 +27,42 @@ import type {
 let nextHandleId = 1
 function makeId(): number { return nextHandleId++ }
 
+/**
+ * Convert an SVG `stroke-dasharray` string (e.g. "1 4" = 1px on, 4px
+ * off) into a Google Maps repeating-icon recipe that approximates the
+ * same stipple. Google Polylines have no native `dashArray`, so we
+ * draw an invisible line and stamp a short vertical segment along it
+ * at `(on + off)px` intervals; the segment's length along the polyline
+ * is `on` px, its perpendicular thickness is the line weight.
+ *
+ * Only the first two values of the dasharray are honoured — alternating
+ * patterns aren't representable as a single icon. Returns null if the
+ * string can't be parsed.
+ */
+function dashArrayToIconSequence(
+  dashArray: string,
+  weight: number,
+  opacity: number,
+): google.maps.IconSequence | null {
+  const parts = dashArray.split(/[\s,]+/).map((s) => parseFloat(s)).filter((n) => Number.isFinite(n) && n > 0)
+  if (parts.length < 2) return null
+  const on = parts[0]
+  const off = parts[1]
+  return {
+    icon: {
+      // 'M 0,-1 0,1' is a vertical 2-unit segment in the symbol's local
+      // frame. Symbol y aligns with the polyline direction, so this draws
+      // a dash *along* the line; scale=on/2 makes the dash on px long.
+      path: 'M 0,-1 0,1',
+      strokeOpacity: opacity,
+      strokeWeight: weight,
+      scale: on / 2,
+    },
+    offset: '0',
+    repeat: (on + off) + 'px',
+  }
+}
+
 // Cached Google API promise — multiple LeafletEngine→GoogleEngine swaps
 // would otherwise re-load the SDK on each remount.
 let googleApiPromise: Promise<typeof google.maps> | null = null
@@ -201,7 +237,13 @@ export class GoogleMapsEngine implements MapEngine {
       clickable: style.interactive ?? true,
       // useCanvasRenderer is Leaflet-only; Google uses its own renderer.
     }
-    if (style.dashed) {
+    if (style.dashArray) {
+      const ic = dashArrayToIconSequence(style.dashArray, style.weight, style.opacity)
+      if (ic) {
+        opts.strokeOpacity = 0
+        opts.icons = [ic]
+      }
+    } else if (style.dashed) {
       // Google's "dashed line" recipe: 0% strokeOpacity + repeating
       // dash icon. The icon's strokeWeight matches the line so the
       // dash thickness follows weight changes in updatePolyline.
@@ -242,7 +284,21 @@ export class GoogleMapsEngine implements MapEngine {
     if (partial.color !== undefined)   opts.strokeColor = partial.color
     if (partial.weight !== undefined)  opts.strokeWeight = partial.weight
     if (partial.opacity !== undefined) opts.strokeOpacity = partial.opacity
-    if (partial.dashed !== undefined) {
+    if (partial.dashArray !== undefined) {
+      if (partial.dashArray) {
+        const w = partial.weight ?? (ply.get('strokeWeight') as number | undefined) ?? 4
+        const o = partial.opacity ?? 1
+        const ic = dashArrayToIconSequence(partial.dashArray, w, o)
+        if (ic) {
+          opts.strokeOpacity = 0
+          opts.icons = [ic]
+          this.polylineDashIcons.set(handle.id, opts.icons)
+        }
+      } else {
+        opts.icons = []
+        this.polylineDashIcons.delete(handle.id)
+      }
+    } else if (partial.dashed !== undefined) {
       if (partial.dashed) {
         opts.strokeOpacity = 0
         const w = partial.weight ?? (ply.get('strokeWeight') as number | undefined) ?? 4
