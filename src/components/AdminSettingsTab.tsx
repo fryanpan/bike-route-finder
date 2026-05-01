@@ -112,8 +112,29 @@ export default function AdminSettingsTab() {
     { value: 'google',    label: 'Google Places (typo-tolerant)',      needsKey: true },
   ]
 
+  // Map renderer / style / POI changes need a full page reload — they
+  // feed into the Google Maps / Leaflet constructor and the SDKs don't
+  // hot-swap cleanly (lingering DOM, stale handles, deck.gl overlay
+  // bound to the old map instance). The settings persist in
+  // localStorage before reload, so the new values are picked up on next
+  // mount. Tiny delay so the localStorage write definitely flushes.
+  function reloadSoon(): void {
+    setTimeout(() => window.location.reload(), 80)
+  }
+
   function setMapEngine(kind: MapEngineKind): void {
     setSettings({ ...settings, mapEngine: kind })
+    reloadSoon()
+  }
+
+  function setMapStyle(style: BaseStyle | ''): void {
+    setSettings({ ...settings, mapStyle: style })
+    reloadSoon()
+  }
+
+  function setShowLandmarks(on: boolean): void {
+    setSettings({ ...settings, googleShowLandmarks: on })
+    reloadSoon()
   }
 
   return (
@@ -142,7 +163,7 @@ export default function AdminSettingsTab() {
           <select
             className="admin-input"
             value={settings.mapStyle}
-            onChange={(e) => update('mapStyle', e.target.value as BaseStyle | '')}
+            onChange={(e) => setMapStyle(e.target.value as BaseStyle | '')}
             style={{ width: 280 }}
           >
             <option value="">(Engine default)</option>
@@ -157,7 +178,7 @@ export default function AdminSettingsTab() {
             <input
               type="checkbox"
               checked={settings.googleShowLandmarks}
-              onChange={(e) => update('googleShowLandmarks', e.target.checked)}
+              onChange={(e) => setShowLandmarks(e.target.checked)}
             />
             <span>
               Show navigational landmarks (parks, schools, transit, attractions).
@@ -168,7 +189,8 @@ export default function AdminSettingsTab() {
 
         <div className="admin-hint">
           Applies to both base tiles AND route / bike-infra polyline rendering.
-          Reload the page after changing the engine — hot-swap is not supported.
+          Page auto-reloads on engine, style, or POI changes — the SDKs
+          don't hot-swap cleanly.
         </div>
         {resolvedEngine.fellBack && (
           <div className="admin-hint" style={{ color: '#b91c1c' }}>
