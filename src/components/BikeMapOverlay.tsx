@@ -19,6 +19,17 @@ import type { OsmWay } from '../utils/types'
 // parallel requests. 30 covers reasonable metro views.
 const MAX_VISIBLE_TILES = 30
 
+// Hard zoom floor for actually drawing the bike-infra overlay. At
+// city-overview zooms (Berlin-wide ≈ z10), the polyline density crushes
+// mobile GPUs and the lines are too small to read anyway. Below this we
+// skip rendering even when tiles are already cached from a prior
+// closer-in view. 12 is comfortable district-level (~6 km wide on
+// phone screens), which is the smallest scale where bike-infra colours
+// start to read meaningfully. The "zoom in" status / MAX_VISIBLE_TILES
+// cap also fires earlier than this, so this is a belt-and-suspenders
+// guard against re-rendering stale loaded ways after a fast zoom-out.
+const OVERLAY_MIN_RENDER_ZOOM = 12
+
 // Hit-area weight for the transparent tap-target polylines. Sized for
 // fingertips on mobile. The visible coloured polyline still paints on
 // top, so the user sees no visual change.
@@ -119,6 +130,14 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
     const polylineHandles: PolylineHandle[] = []
     const pathLayerHandles: PathLayerHandle[] = []
     let openPopup: PopupHandle | null = null
+
+    // Skip drawing when too zoomed out — overlay is unreadable and the
+    // GPU work is wasted. Cleanup is a no-op (nothing was added).
+    // We still subscribe to zoom changes so the next zoomend re-runs
+    // this effect and starts drawing when we cross the threshold.
+    if (zoom < OVERLAY_MIN_RENDER_ZOOM) {
+      return () => { /* nothing rendered */ }
+    }
 
     const BROWSING_WEIGHT = 4
 
