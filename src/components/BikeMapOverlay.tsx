@@ -13,22 +13,12 @@ import { useMapEngine } from '../services/mapEngine/context'
 import type { MapEngine, PolylineHandle, PopupHandle, PathLayerHandle, PathLayerFeature } from '../services/mapEngine'
 import type { ClassificationRule } from '../services/rules'
 import type { OsmWay } from '../utils/types'
+import { simplifyPath } from '../utils/simplifyPath'
 
 // Max tiles allowed in viewport. Beyond this the map is too zoomed out
 // to be useful — show the "zoom in" prompt instead of firing many
 // parallel requests. 30 covers reasonable metro views.
 const MAX_VISIBLE_TILES = 30
-
-// Hard zoom floor for actually drawing the bike-infra overlay. At
-// city-overview zooms (Berlin-wide ≈ z10), the polyline density crushes
-// mobile GPUs and the lines are too small to read anyway. Below this we
-// skip rendering even when tiles are already cached from a prior
-// closer-in view. 12 is comfortable district-level (~6 km wide on
-// phone screens), which is the smallest scale where bike-infra colours
-// start to read meaningfully. The "zoom in" status / MAX_VISIBLE_TILES
-// cap also fires earlier than this, so this is a belt-and-suspenders
-// guard against re-rendering stale loaded ways after a fast zoom-out.
-const OVERLAY_MIN_RENDER_ZOOM = 12
 
 // Hit-area weight for the transparent tap-target polylines. Sized for
 // fingertips on mobile. The visible coloured polyline still paints on
@@ -96,6 +86,10 @@ function buildTooltipHtml(
 
 interface RenderedWay {
   way: OsmWay
+  /** Coordinates after per-zoom Douglas-Peucker decimation. Shared
+   *  across all overlay passes (halo / hit / colour / stipple) so the
+   *  simplification cost is paid once per render. */
+  coords: [number, number][]
   pathLevel: PathLevel
   color: string
   weight: number
@@ -130,14 +124,6 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
     const polylineHandles: PolylineHandle[] = []
     const pathLayerHandles: PathLayerHandle[] = []
     let openPopup: PopupHandle | null = null
-
-    // Skip drawing when too zoomed out — overlay is unreadable and the
-    // GPU work is wasted. Cleanup is a no-op (nothing was added).
-    // We still subscribe to zoom changes so the next zoomend re-runs
-    // this effect and starts drawing when we cross the threshold.
-    if (zoom < OVERLAY_MIN_RENDER_ZOOM) {
-      return () => { /* nothing rendered */ }
-    }
 
     const BROWSING_WEIGHT = 4
 
@@ -180,7 +166,13 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
           ? settings.overlayOpacityWithRoute
           : settings.overlayOpacityBrowsing
       const drawHalo = isBikeInfraTier
-      toRender.push({ way, pathLevel, color, weight, opacity, itemName, isPreferred, drawHalo })
+      // Decimate the geometry once per render. All overlay passes
+      // (halo, hit-area, colour, plus the stipple pass for rough
+      // ways) share this simplified path so the GPU vertex count
+      // collapses at low zoom. At z >= 16 simplifyPath returns the
+      // input unchanged so taps still hit precise geometry.
+      const coords = simplifyPath(way.coordinates, zoom)
+      toRender.push({ way, coords, pathLevel, color, weight, opacity, itemName, isPreferred, drawHalo })
 
       // Reference unused locals to keep the noUnusedLocals tsc rule happy
       // when a future tweak removes a reader. (TS ignores via void.)
@@ -217,7 +209,7 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
       if (!r.drawHalo) continue
       haloFeatures.push({
         id: 'halo:' + r.way.osmId,
-        coordinates: r.way.coordinates,
+        coordinates: r.coords,
         color: '#ffffff',
         width: r.weight + settings.overlayHaloExtra,
         opacity: r.opacity,
@@ -233,7 +225,7 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
     // we need this dedicated layer for forgiving mobile taps.
     const hitFeatures: PathLayerFeature[] = toRender.map((r) => ({
       id: r.way.osmId,
-      coordinates: r.way.coordinates,
+      coordinates: r.coords,
       color: '#000000',
       width: HIT_POLYLINE_WEIGHT,
       opacity: 0,
@@ -251,7 +243,7 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
     // Pass 2b — visible coloured polylines (top z-order of pass 2).
     const colorFeatures: PathLayerFeature[] = toRender.map((r) => ({
       id: 'color:' + r.way.osmId,
-      coordinates: r.way.coordinates,
+      coordinates: r.coords,
       color: r.color,
       width: r.weight,
       opacity: r.opacity,
