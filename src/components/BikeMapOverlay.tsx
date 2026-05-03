@@ -3,7 +3,7 @@ import {
   fetchBikeInfraForTile, getVisibleTiles, isTileCached, getCachedTile, tileKey,
   classifyOsmTagsToItem, isOverlayHiddenSurface, isRoughSurface,
 } from '../services/overpass'
-import { PREFERRED_COLOR, OTHER_COLOR, PROFILE_LEGEND, getDisplayPathLevel } from '../utils/classify'
+import { PROFILE_LEGEND, getDisplayPathLevel } from '../utils/classify'
 import { classifyEdge, PATH_LEVEL_LABELS } from '../utils/lts'
 import type { PathLevel } from '../utils/lts'
 import { colorForLevel, weightMultiplierForLevel } from './SimpleLegend'
@@ -99,12 +99,11 @@ interface RenderedWay {
   drawHalo: boolean
 }
 
-function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOtherPaths, hasRoute, regionRules }: {
+function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, hasRoute, regionRules }: {
   engine: MapEngine
   ways: OsmWay[]
   profileKey: string
   preferredItemNames: Set<string>
-  showOtherPaths: boolean
   hasRoute: boolean
   regionRules?: ClassificationRule[]
 }) {
@@ -148,10 +147,16 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
       const itemName = classifyOsmTagsToItem(way.tags, profileKey, regionRules)
       const pathLevel = getDisplayPathLevel(itemName, profileKey, routingPathLevel)
       const isLevelPreferred = preferredLevels.has(pathLevel)
-      if (!isLevelPreferred && !showOtherPaths) continue
+      // Overlay shows ONLY preferred-tier bike infra. Non-preferred ways
+      // (LTS 2b/3) clutter the map and tank perf in dense urban areas;
+      // when a route is active, those streets still render via the route
+      // polylines themselves (see useRoutePolylines in Map.tsx) so the
+      // user sees every segment along their actual route regardless of
+      // tier preference.
+      if (!isLevelPreferred) continue
 
       const isPreferred = itemName !== null && preferredItemNames.has(itemName)
-      const color = isLevelPreferred ? colorForLevel(pathLevel, settings.tiers) : OTHER_COLOR
+      const color = colorForLevel(pathLevel, settings.tiers)
       const isBikeInfraTier = pathLevel === '1a' || pathLevel === '1b' || pathLevel === '2a'
       const browsingWeight = BROWSING_WEIGHT * weightMultiplierForLevel(pathLevel, settings.tiers)
       const weightScaled = hasRoute && isBikeInfraTier
@@ -302,7 +307,7 @@ function OverlayRenderer({ engine, ways, profileKey, preferredItemNames, showOth
       for (const h of pathLayerHandles) engine.removePathLayer(h)
       if (openPopup) engine.closePopup(openPopup)
     }
-  }, [engine, ways, profileKey, preferredItemNames, showOtherPaths, hasRoute, regionRules, settings, zoom])
+  }, [engine, ways, profileKey, preferredItemNames, hasRoute, regionRules, settings, zoom])
 
   return null
 }
@@ -313,13 +318,12 @@ interface ControllerProps {
   enabled: boolean
   profileKey: string
   preferredItemNames: Set<string>
-  showOtherPaths: boolean
   hasRoute: boolean
   onStatusChange: (status: string) => void
   regionRules?: ClassificationRule[]
 }
 
-function OverlayController({ enabled, profileKey, preferredItemNames, showOtherPaths, hasRoute, onStatusChange, regionRules }: ControllerProps) {
+function OverlayController({ enabled, profileKey, preferredItemNames, hasRoute, onStatusChange, regionRules }: ControllerProps) {
   const engine = useMapEngine()
   const [tileData, setTileData] = useState<Map<string, OsmWay[]>>(new Map())
 
@@ -444,7 +448,6 @@ function OverlayController({ enabled, profileKey, preferredItemNames, showOtherP
       ways={allWays}
       profileKey={profileKey}
       preferredItemNames={preferredItemNames}
-      showOtherPaths={showOtherPaths}
       hasRoute={hasRoute}
       regionRules={regionRules}
     />
@@ -457,7 +460,6 @@ interface Props {
   enabled: boolean
   profileKey: string
   preferredItemNames: Set<string>
-  showOtherPaths: boolean
   hasRoute: boolean
   onStatusChange: (status: string) => void
   regionRules?: ClassificationRule[]
