@@ -697,7 +697,6 @@ interface Props {
   currentLocation: { lat: number; lng: number } | null
   currentHeading?: number | null
   preferredItemNames: Set<string>
-  showOtherPaths: boolean
   flyToPlace?: Place | null
   regionRules?: ClassificationRule[]
   onSelectRoute?: (index: number) => void
@@ -711,7 +710,7 @@ export default function Map(props: Props) {
     startPoint, endPoint, route, routes = [], selectedRouteIndex = 0,
     waypoints, onRemoveWaypoint, overlayEnabled, profileKey,
     onOverlayStatusChange, currentLocation, currentHeading,
-    preferredItemNames, showOtherPaths, flyToPlace, regionRules,
+    preferredItemNames, flyToPlace, regionRules,
     onSelectRoute, onAddWaypoint, onRerouteAround, onFlagSegment,
   } = props
 
@@ -798,7 +797,6 @@ export default function Map(props: Props) {
               enabled={overlayEnabled}
               profileKey={profileKey}
               preferredItemNames={preferredItemNames}
-              showOtherPaths={showOtherPaths}
               hasRoute={!!route}
               onStatusChange={onOverlayStatusChange}
               regionRules={regionRules}

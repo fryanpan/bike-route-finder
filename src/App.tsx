@@ -98,25 +98,22 @@ function saveProfiles(profiles: ProfileMap): void {
  *  was removed pre-launch and the persistence path was a source of stale-
  *  state bugs across mode switches (2026-04-28). preferredItemNames is
  *  now always derived from the active profile. */
-function getInitialState(): { profileKey: string; showOtherPaths: boolean } {
+function getInitialState(): { profileKey: string } {
   const params = new URLSearchParams(window.location.search)
   const modeParam = params.get('travelMode')
-  const showOtherParam = params.get('showOther')
-
-  const showOtherPaths = showOtherParam === '1'
 
   if (modeParam && DEFAULT_PROFILES[modeParam]) {
-    return { profileKey: modeParam, showOtherPaths }
+    return { profileKey: modeParam }
   }
 
   try {
     const savedMode = localStorage.getItem(TRAVEL_MODE_KEY)
     if (savedMode && DEFAULT_PROFILES[savedMode]) {
-      return { profileKey: savedMode, showOtherPaths }
+      return { profileKey: savedMode }
     }
   } catch { /* ignore */ }
 
-  return { profileKey: 'kid-starting-out', showOtherPaths }
+  return { profileKey: 'kid-starting-out' }
 }
 
 /** Resolve the user's current location as a Place (async, returns null on failure). */
@@ -154,9 +151,6 @@ export default function App() {
     () => getDefaultPreferredItems(selectedProfile),
     [selectedProfile],
   )
-  const [showOtherPaths, setShowOtherPaths] = useState(initialState.showOtherPaths)
-
-
 
   // --- UI state machine ---
   const [uiState, setUiState] = useState<UiState>('search')
@@ -308,11 +302,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     params.set('travelMode', selectedProfile)
     params.delete('preferred')  // legacy URL param, no longer honored
-    if (showOtherPaths) {
-      params.set('showOther', '1')
-    } else {
-      params.delete('showOther')
-    }
+    params.delete('showOther')  // legacy URL param, no longer honored — overlay is always preferred-only
     window.history.replaceState({}, '', `?${params.toString()}`)
 
     try {
@@ -322,7 +312,7 @@ export default function App() {
       // existed. One-shot cleanup; safe to keep indefinitely.
       localStorage.removeItem('bike-route-custom-preferred')
     } catch { /* ignore */ }
-  }, [selectedProfile, showOtherPaths])
+  }, [selectedProfile])
 
   useEffect(() => {
     saveProfiles(profiles)
@@ -691,7 +681,6 @@ export default function App() {
             currentLocation={currentLocation}
             currentHeading={currentHeading}
             preferredItemNames={preferredItemNames}
-            showOtherPaths={showOtherPaths}
             flyToPlace={flyToPlace}
             regionRules={regionRules}
             onRerouteAround={route ? rerouteAroundSegment : undefined}
