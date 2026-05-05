@@ -37,17 +37,22 @@
     <script type="module" src="/src/main.tsx"></script>
     <!-- Plausible analytics — production only. Cookieless, EU-hosted, no
          consent banner needed (per privacy-preserving-web-analytics fleet
-         decision 2026-05-05; see docs/product/decisions.md). Standard
-         plausible.io script; if ad-blocker hit-rate ever matters, swap to
-         the CF Worker proxy pattern. -->
+         decision 2026-05-05; see docs/product/decisions.md). Snippet is
+         the per-site "init" form Plausible generates after the site is
+         created (the trailing pa-…js file is the property identifier);
+         we still hostname-gate the whole block so dev/Tailscale never
+         fires events. If ad-blocker hit rate ever matters, swap the
+         script src to a same-origin CF Worker proxy. -->
     <script>
       (function () {
         if (location.hostname !== 'bike-map.fryanpan.com') return
         var s = document.createElement('script')
-        s.defer = true
-        s.setAttribute('data-domain', 'bike-map.fryanpan.com')
-        s.src = 'https://plausible.io/js/script.js'
+        s.async = true
+        s.src = 'https://plausible.io/js/pa-QgPua3FTUBSVeM6iDcqFf.js'
         document.head.appendChild(s)
+        window.plausible = window.plausible || function () { (plausible.q = plausible.q || []).push(arguments) }
+        plausible.init = plausible.init || function (i) { plausible.o = i || {} }
+        plausible.init()
       })()
     </script>
     <!-- Live-feedback widget — dev only. Loaded from the local feedback
