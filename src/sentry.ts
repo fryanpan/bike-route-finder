@@ -9,14 +9,29 @@ export function initSentry() {
     dsn,
     environment: import.meta.env.MODE,  // 'production' or 'development'
     release: APP_VERSION,               // matches the sentryVitePlugin release for source-map mapping
+
     // Privacy: don't send IP, cookies, headers, or user-scope data
     // Sentry would otherwise auto-collect. Standardized fleet-wide
     // 2026-05-05 — see docs/product/decisions.md.
     sendDefaultPii: false,
-    // 10 % performance tracing — captures Core Web Vitals (LCP / CLS /
-    // INP) and request spans without flooding the project quota. Errors
-    // are 100 % captured separately; this only affects performance txns.
-    tracesSampleRate: 0.1,
+
+    // 100 % performance tracing for personal projects (per fleet
+    // standard 2026-05-05). Captures Core Web Vitals (LCP / CLS / INP)
+    // plus transaction spans on every page load. Errors are captured
+    // independently regardless of this rate.
+    tracesSampleRate: 1.0,
+
+    // Browser tracing isn't in the v10 default integrations list — it
+    // must be added explicitly. Without this, `tracesSampleRate > 0`
+    // alone produces zero spans and Core Web Vitals don't show up.
+    integrations: [Sentry.browserTracingIntegration()],
+
+    // Sentry Logs — structured `Sentry.logger.info / warn / error` calls
+    // forwarded to the project's Logs view. v10+ uses the top-level
+    // `enableLogs` key (the older `_experiments.enableLogs` is
+    // deprecated). Verified against @sentry/react@10.47 SDK types.
+    enableLogs: true,
+
     // No session replay — neither on errors nor on sessions. The replay
     // SDK adds ~80 KB and we have no current need.
     replaysOnErrorSampleRate: 0,
