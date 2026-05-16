@@ -74,8 +74,11 @@ export interface ModeRule {
   // unavoidable gap by walking the bike on the sidewalk.
   walkingSpeedKmh: number
 
-  // Optional gradient cap (percent grade). Route is rejected if any segment
-  // exceeds this. Useful for non-e-assist modes on hilly cities.
+  // Optional gradient cap (percent grade). Ways whose end-to-end gradient
+  // exceeds this are demoted to bridge-walk (walkingSpeedKmh, isWalking=true)
+  // when bridge-walkable, mirroring the existing pattern for mode-rejected
+  // edges. Hard-rejected only when not bridge-walkable (motorway, foot=no).
+  // See src/services/clientRouter.ts gradient-gate block.
   gradientCapPct?: number
 
   // Cost multiplier per PathLevel. Defaults to 1.0 for any level not listed.
